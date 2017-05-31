@@ -1509,6 +1509,7 @@ restore_pci_devs(struct vmctx *ctx, struct restore_state *rstate)
 	char *devs[] = {
 		"virtio-net",
 		"virtio-blk",
+		"lpc",
 	};
 
 	for (i = 0; i < sizeof(devs)/sizeof(devs[0]); i++) {
@@ -1623,6 +1624,7 @@ vm_snapshot_pci_data(struct vmctx *ctx, int data_fd, xo_handle_t *xop)
 	char *devs[] = {
 		"virtio-net",
 		"virtio-blk",
+		"lpc",
 	};
 
 	offset = lseek(data_fd, 0, SEEK_CUR);
