@@ -1038,7 +1038,7 @@ intr_setup_irq(device_t dev, struct resource *res, driver_filter_t filt,
 		{
 		error = isrc_add_handler(isrc, name, filt, hand, arg, flags,
 		    cookiep);
-		debugf("irq %u add handler error %d on %s\n", irq, error, name);
+//		debugf("irq %u add handler error %d on %s\n", irq, error, name);
 	}
 	if (error != 0)
 		return (error);

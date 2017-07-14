@@ -137,6 +137,7 @@ dev/syscons/scgfbrndr.c		optional	sc
 dev/syscons/scterm-teken.c	optional	sc
 dev/syscons/scvtb.c		optional	sc
 dev/uart/uart_cpu_fdt.c		optional	uart fdt
+dev/bvm/bvm_console.c		optional	bvmconsole
 
 font.h				optional	sc			\
 	compile-with	"uudecode < /usr/share/syscons/fonts/${SC_DFLT_FONT}-8x16.fnt && file2c 'u_char dflt_font_16[16*256] = {' '};' < ${SC_DFLT_FONT}-8x16 > font.h && uudecode < /usr/share/syscons/fonts/${SC_DFLT_FONT}-8x14.fnt && file2c 'u_char dflt_font_14[14*256] = {' '};' < ${SC_DFLT_FONT}-8x14 >> font.h && uudecode < /usr/share/syscons/fonts/${SC_DFLT_FONT}-8x8.fnt && file2c 'u_char dflt_font_8[8*256] = {' '};' < ${SC_DFLT_FONT}-8x8 >> font.h" \
