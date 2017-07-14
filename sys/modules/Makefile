@@ -746,6 +746,11 @@ _ctau=		ctau
 .if ${MACHINE_CPUARCH} == "arm"
 _cfi=		cfi
 _cpsw=		cpsw
+
+.if ${MK_BHYVE} != "no" || defined(ALL_MODULES)
+_vmm=		vmm
+.endif
+
 .endif
 
 .if ${MACHINE_CPUARCH} == "powerpc"
