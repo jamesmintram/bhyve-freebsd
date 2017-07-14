@@ -12,6 +12,7 @@ PACKAGE=	bhyve
 MAN=	bhyve.8
 
 BHYVE_SYSDIR?=${SRCTOP}
+BHYVE_SRCTOP?=${.CURDIR}
 
 SRCS=	\
 	atkbdc.c		\
@@ -79,13 +80,16 @@ CFLAGS+=-DINET6
 .endif
 .if ${MK_OPENSSL} == "no"
 CFLAGS+=-DNO_OPENSSL
-.else
-LIBADD+=	crypto
 .endif
 
-CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/e1000
-CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/mii
-CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/usb/controller
+.if exists(${BHYVE_SRCTOP}/${MACHINE_ARCH})
+BHYVE_ARCH=	${MACHINE_ARCH}
+.else
+BHYVE_ARCH=	${MACHINE_CPUARCH}
+.endif
+
+.include "${BHYVE_SRCTOP}/${BHYVE_ARCH}/Makefile.inc"
+LIBADD+=	vmmapi md pthread
 
 .ifdef GDB_LOG
 CFLAGS+=-DGDB_LOG

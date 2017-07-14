@@ -140,7 +140,7 @@
 #define COPROC10		(0x3 << 20)
 #define COPROC11		(0x3 << 22)
 
-#ifndef LOCORE
+#if !defined(LOCORE) && !defined(__ASSEMBLER__)
 struct vfp_state {
 	uint64_t reg[32];
 	uint32_t fpscr;
@@ -156,6 +156,6 @@ void    vfp_init(void);
 void    vfp_store(struct vfp_state *, boolean_t);
 void    vfp_discard(struct thread *);
 #endif	/* _KERNEL */
-#endif	/* LOCORE */
+#endif	/* !LOCORE && !__ASSEMBLER__ */
 
 #endif
