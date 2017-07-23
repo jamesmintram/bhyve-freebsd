@@ -175,7 +175,7 @@ SUBDIR.${MK_NIS}+=	libypclnt
 _libvgl=	libvgl
 .endif
 
-.if ${MACHINE_CPUARCH} == "amd64" || ${MACHINE_CPUARCH} == "arm"
+.if ${MACHINE_CPUARCH} == "amd64" || ${MACHINE_CPUARCH} == "arm" || ${MACHINE_CPUARCH} == "aarch64"
 SUBDIR.${MK_BHYVE}+=	libvmmapi
 .endif
 

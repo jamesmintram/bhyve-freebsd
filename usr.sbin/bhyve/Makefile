@@ -23,7 +23,9 @@ SRCS=	\
 	mevent.c		\
 	sockstream.c
 
-.if exists(${BHYVE_SRCTOP}/${MACHINE_ARCH})
+.if exists(${BHYVE_SRCTOP}/${MACHINE})
+BHYVE_ARCH=	${MACHINE}
+.elif exists(${BHYVE_SRCTOP}/${MACHINE_ARCH})
 BHYVE_ARCH=	${MACHINE_ARCH}
 .else
 BHYVE_ARCH=	${MACHINE_CPUARCH}
