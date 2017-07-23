@@ -563,6 +563,9 @@ _allwinner=	allwinner
 _armv8crypto=	armv8crypto
 _efirt=		efirt
 _em=		em
+.if ${MK_BHYVE} != "no" || defined(ALL_MODULES)
+_vmm=		vmm
+.endif
 .endif
 
 .if ${MACHINE_CPUARCH} == "i386" || ${MACHINE_CPUARCH} == "amd64"
