@@ -37,7 +37,7 @@
  */
 
 #ifndef _ARM_GIC_H_
-#define	_ARM_GIC_H_
+#define _ARM_GIC_H_
 
 #define	GIC_FIRST_SGI		 0	/* Irqs 0-15 are SGIs/IPIs. */
 #define	GIC_LAST_SGI		15
