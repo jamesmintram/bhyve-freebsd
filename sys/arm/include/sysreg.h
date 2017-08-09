@@ -277,6 +277,9 @@
 #define	CP15_AMAIR0(rr)		p15, 0, rr, c10, c3, 0 /* Auxiliary Memory Attribute Indirection Register 0 */
 #define	CP15_AMAIR1(rr)		p15, 0, rr, c10, c3, 1 /* Auxiliary Memory Attribute Indirection Register 1 */
 
+#define	CP15_HMAIR0(rr)		p15, 4, rr, c10, c2, 0 /* Hyp Memory Attribute Indirection Register 0 */
+#define	CP15_HMAIR1(rr)		p15, 4, rr, c10, c2, 1 /* Hyp Memory Attribute Indirection Register 1 */
+
 /*
  * CP15 C12 registers
  */
