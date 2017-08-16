@@ -81,5 +81,12 @@
 #define	HCR_CD		0x0000000100000000
 #define	HCR_ID		0x0000000200000000
 
+/*
+ * Virtualization Translation Table Base Register
+ */
+#define	VTTBR_VMID_MASK		0x00ff000000000000	/* Only 8-bit VMID supported */
+#define VTTBR_VMID_SHIFT	48
+#define	VTTBR_HOST		0x0000000000000000
+
 #endif
 
