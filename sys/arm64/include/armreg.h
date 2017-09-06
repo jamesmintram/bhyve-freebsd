@@ -127,6 +127,7 @@
 #define	ESR_ELx_EC_MASK		(0x3f << 26)
 #define	ESR_ELx_EXCEPTION(esr)	(((esr) & ESR_ELx_EC_MASK) >> ESR_ELx_EC_SHIFT)
 #define	 EXCP_UNKNOWN		0x00	/* Unkwn exception */
+#define	 EXCP_TRAP_WFI_WFE	0x01	/* Trapped WFI or WFE */
 #define	 EXCP_FP_SIMD		0x07	/* VFP/SIMD trap */
 #define	 EXCP_ILL_STATE		0x0e	/* Illegal execution state */
 #define	 EXCP_SVC32		0x11	/* SVC trap for AArch32 */
