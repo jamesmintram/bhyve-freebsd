@@ -117,7 +117,7 @@
 #define	TCR_EL2_PS_52BITS	(6 << TCR_EL2_PS_SHIFT)	/* ARMv8.2-LPA not supported */
 
 /* SCTLR_EL2 - System Control Register */
-#define	SCTLR_EL2_RES1	0x30c50810
+#define	SCTLR_EL2_RES1	0x30c50830
 #define	SCTLR_EL2_M	0x00000001
 #define	SCTLR_EL2_A	0x00000002
 #define	SCTLR_EL2_C	0x00000004
@@ -128,6 +128,6 @@
 
 /* VMPDIR_EL2 - Virtualization Multiprocessor ID Register */
 #define	VMPIDR_EL2_U	0x0000000040000000
+#define	VMPIDR_EL2_MT	0x0000000001000000
 
-#endif
-
+#endif /* !_MACHINE_HYPERVISOR_H_ */
