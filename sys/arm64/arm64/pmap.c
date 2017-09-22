@@ -145,6 +145,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/machdep.h>
 #include <machine/md_var.h>
 #include <machine/pcb.h>
+#include <machine/pmap.h>
 
 #include <arm/include/physmem.h>
 
@@ -1447,7 +1448,7 @@ pmap_pinit0(pmap_t pmap)
 }
 
 int
-pmap_pinit(pmap_t pmap)
+pmap_pinit_type(pmap_t pmap, enum pmap_type pm_type)
 {
 	vm_paddr_t l0phys;
 	vm_page_t l0pt;
@@ -1466,9 +1467,16 @@ pmap_pinit(pmap_t pmap)
 		pagezero(pmap->pm_l0);
 
 	pmap->pm_root.rt_root = 0;
+	pmap->pm_type = pm_type;
 	bzero(&pmap->pm_stats, sizeof(pmap->pm_stats));
 
 	return (1);
+}
+
+int
+pmap_pinit(pmap_t pmap)
+{
+	return (pmap_pinit_type(pmap, PT_STAGE1));
 }
 
 /*

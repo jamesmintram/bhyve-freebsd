@@ -76,9 +76,14 @@ struct pv_addr {
 	vm_paddr_t	pv_pa;
 };
 
+enum pmap_type {
+	PT_STAGE1,
+	PT_STAGE2,
+};
 
 struct pmap {
 	struct mtx		pm_mtx;
+	enum pmap_type		pm_type;
 	struct pmap_statistics	pm_stats;	/* pmap statictics */
 	pd_entry_t		*pm_l0;
 	TAILQ_HEAD(,pv_chunk)	pm_pvchunk;	/* list of mappings in pmap */
@@ -166,6 +171,7 @@ bool	pmap_get_tables(pmap_t, vm_offset_t, pd_entry_t **, pd_entry_t **,
     pd_entry_t **, pt_entry_t **);
 
 int	pmap_fault(pmap_t, uint64_t, uint64_t);
+int	pmap_pinit_type(pmap_t, enum pmap_type);
 
 struct pcb *pmap_switch(struct thread *, struct thread *);
 
