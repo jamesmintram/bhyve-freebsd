@@ -79,6 +79,7 @@ struct pv_addr {
 enum pmap_type {
 	PT_STAGE1,
 	PT_STAGE2,
+	PT_INVALID,
 };
 
 struct pmap {
