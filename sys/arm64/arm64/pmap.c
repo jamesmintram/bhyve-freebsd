@@ -362,6 +362,9 @@ pmap_l0_to_l1(pd_entry_t *l0, vm_offset_t va)
 static __inline pd_entry_t *
 pmap_l1(pmap_t pmap, vm_offset_t va)
 {
+	if (pmap->pm_type == PT_STAGE2)
+		return (&pmap->pm_l0[pmap_stage2_l1_index(va)]);
+
 	pd_entry_t *l0;
 
 	l0 = pmap_l0(pmap, va);
@@ -369,12 +372,6 @@ pmap_l1(pmap_t pmap, vm_offset_t va)
 		return (NULL);
 
 	return(pmap_l0_to_l1(l0, va));
-}
-
-static __inline pd_entry_t *
-pmap_stage2_l1(pmap_t pmap, vm_offset_t va)
-{
-	return (&pmap->pm_l0[pmap_stage2_l1_index(va)]);
 }
 
 static __inline pd_entry_t *
@@ -391,10 +388,7 @@ pmap_l2(pmap_t pmap, vm_offset_t va)
 {
 	pd_entry_t *l1;
 
-	if (pmap->pm_type == PT_STAGE1)
-		l1 = pmap_l1(pmap, va);
-	else
-		l1 = pmap_stage2_l1(pmap, va);
+	l1 = pmap_l1(pmap, va);
 	if ((pmap_load(l1) & ATTR_DESCR_MASK) != L1_TABLE)
 		return (NULL);
 
@@ -434,7 +428,7 @@ pmap_pde(pmap_t pmap, vm_offset_t va, int *level)
 			return (l0);
 		}
 	} else {
-		l1 = pmap_stage2_l1(pmap, va);
+		l1 = pmap_l1(pmap, va);
 		desc = pmap_load(l1) & ATTR_DESCR_MASK;
 		if (desc != L1_TABLE) {
 			/* For PT_STAGE2 mappings the first level is level 1 */
@@ -465,10 +459,7 @@ pmap_pte(pmap_t pmap, vm_offset_t va, int *level)
 	pd_entry_t *l1, *l2, desc;
 	pt_entry_t *l3;
 
-	if (pmap->pm_type == PT_STAGE1)
-		l1 = pmap_l1(pmap, va);
-	else
-		l1 = pmap_stage2_l1(pmap, va);
+	l1 = pmap_l1(pmap, va);
 	if (l1 == NULL) {
 		*level = 0;
 		return (NULL);
@@ -528,12 +519,11 @@ pmap_get_tables(pmap_t pmap, vm_offset_t va, pd_entry_t **l0, pd_entry_t **l1,
 			return (false);
 
 		l1p = pmap_l0_to_l1(l0p, va);
-		*l1 = l1p;
 	} else {
 		*l0 = NULL;
-		l1p = pmap_stage2_l1(pmap, va);
-		*l1 = l1p;
+		l1p = pmap_l1(pmap, va);
 	}
+	*l1 = l1p;
 
 	if ((pmap_load(l1p) & ATTR_DESCR_MASK) == L1_BLOCK) {
 		*l2 = NULL;
@@ -1455,10 +1445,7 @@ _pmap_unwire_l3(pmap_t pmap, vm_offset_t va, vm_page_t m, struct spglist *free)
 		if (pmap->pm_type == PT_STAGE2)
 			printf("m->pindex >= NUL2E\n");
 
-		if (pmap->pm_type == PT_STAGE1)
-			l1 = pmap_l1(pmap, va);
-		else
-			l1 = pmap_stage2_l1(pmap, va);
+		l1 = pmap_l1(pmap, va);
 		pmap_load_clear(l1);
 	} else {
 		/* l3 page */
@@ -1480,10 +1467,7 @@ _pmap_unwire_l3(pmap_t pmap, vm_offset_t va, vm_page_t m, struct spglist *free)
 		pd_entry_t *l1, tl1;
 		vm_page_t l2pg;
 
-		if (pmap->pm_type == PT_STAGE1)
-			l1 = pmap_l1(pmap, va);
-		else
-			l1 = pmap_stage2_l1(pmap, va);
+		l1 = pmap_l1(pmap, va);
 		tl1 = pmap_load(l1);
 		l2pg = PHYS_TO_VM_PAGE(tl1 & ~ATTR_MASK);
 		pmap_unwire_l3(pmap, va, l2pg, free);
@@ -2692,7 +2676,7 @@ pmap_remove(pmap_t pmap, vm_offset_t sva, vm_offset_t eva)
 
 			l1 = pmap_l0_to_l1(l0, sva);
 		} else
-			l1 = pmap_stage2_l1(pmap, sva);
+			l1 = pmap_l1(pmap, sva);
 		if (pmap_load(l1) == 0) {
 			va_next = (sva + L1_SIZE) & ~L1_OFFSET;
 			if (va_next < sva)
