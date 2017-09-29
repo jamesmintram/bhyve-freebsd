@@ -2962,8 +2962,9 @@ pmap_remove(pmap_t pmap, vm_offset_t sva, vm_offset_t eva)
 			}
 
 			l1 = pmap_l0_to_l1(l0, sva);
-		} else
+		} else {
 			l1 = pmap_l1(pmap, sva);
+		}
 		if (pmap_load(l1) == 0) {
 			va_next = (sva + L1_SIZE) & ~L1_OFFSET;
 			if (va_next < sva)
@@ -3507,29 +3508,33 @@ pmap_enter(pmap_t pmap, vm_offset_t va, vm_page_t m, vm_prot_t prot,
 	if ((m->oflags & VPO_UNMANAGED) == 0)
 		VM_PAGE_OBJECT_BUSY_ASSERT(m);
 	pa = VM_PAGE_TO_PHYS(m);
-	new_l3 = (pt_entry_t)(pa | ATTR_DEFAULT | ATTR_IDX(m->md.pv_memattr) |
-	    L3_PAGE);
-	if ((prot & VM_PROT_WRITE) == 0)
-		new_l3 |= ATTR_AP(ATTR_AP_RO);
-	if ((prot & VM_PROT_EXECUTE) == 0 ||
-	    m->md.pv_memattr == VM_MEMATTR_DEVICE)
-		new_l3 |= ATTR_XN;
+	if (pmap->pm_type == PT_STAGE1) {
+		new_l3 = (pt_entry_t)(pa | ATTR_DEFAULT | ATTR_IDX(m->md.pv_memattr) |
+		    L3_PAGE);
+		if ((prot & VM_PROT_WRITE) == 0)
+			new_l3 |= ATTR_AP(ATTR_AP_RO);
+		if ((prot & VM_PROT_EXECUTE) == 0 ||
+		    m->md.pv_memattr == VM_MEMATTR_DEVICE)
+			new_l3 |= ATTR_XN;
+		if (va < VM_MAXUSER_ADDRESS)
+			new_l3 |= ATTR_AP(ATTR_AP_USER) | ATTR_PXN;
+		else
+			new_l3 |= ATTR_UXN;
+		if (pmap != kernel_pmap)
+			new_l3 |= ATTR_nG;
+		if ((m->oflags & VPO_UNMANAGED) == 0) {
+			new_l3 |= ATTR_SW_MANAGED;
+			if ((prot & VM_PROT_WRITE) != 0) {
+				new_l3 |= ATTR_SW_DBM;
+				if ((flags & VM_PROT_WRITE) == 0)
+					new_l3 |= ATTR_AP(ATTR_AP_RO);
+			}
+		}
+	} else {
+		new_l3 = (pd_entry_t)(pa | ATTR_ST2_DEFAULT | L3_PAGE);
+	}
 	if ((flags & PMAP_ENTER_WIRED) != 0)
 		new_l3 |= ATTR_SW_WIRED;
-	if (va < VM_MAXUSER_ADDRESS)
-		new_l3 |= ATTR_AP(ATTR_AP_USER) | ATTR_PXN;
-	else
-		new_l3 |= ATTR_UXN;
-	if (pmap != kernel_pmap)
-		new_l3 |= ATTR_nG;
-	if ((m->oflags & VPO_UNMANAGED) == 0) {
-		new_l3 |= ATTR_SW_MANAGED;
-		if ((prot & VM_PROT_WRITE) != 0) {
-			new_l3 |= ATTR_SW_DBM;
-			if ((flags & VM_PROT_WRITE) == 0)
-				new_l3 |= ATTR_AP(ATTR_AP_RO);
-		}
-	}
 
 	CTR2(KTR_PMAP, "pmap_enter: %.16lx -> %.16lx", va, pa);
 
@@ -3573,14 +3578,7 @@ retry:
 		/* We need to allocate an L3 table. */
 	}
 
-	//if (pmap->pm_type == PT_STAGE2)
-	//	printf("don't have level3\n");
-
 	if (va < VM_MAXUSER_ADDRESS) {
-
-		//if (pmap->pm_type == PT_STAGE2)
-		//	printf("va < VM_MAXUSER_ADDRESS\n");
-
 		nosleep = (flags & PMAP_ENTER_NOSLEEP) != 0;
 
 		/*
