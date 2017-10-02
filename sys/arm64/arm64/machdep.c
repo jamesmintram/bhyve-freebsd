@@ -896,6 +896,10 @@ try_load_dtb(caddr_t kmdp)
 	vm_offset_t dtbp;
 
 	dtbp = MD_FETCH(kmdp, MODINFOMD_DTBP, vm_offset_t);
+#if defined(FDT_DTB_STATIC)
+	if (dtbp == (vm_offset_t)NULL)
+		dtbp = (vm_offset_t)&fdt_static_dtb;
+#endif
 	if (dtbp == (vm_offset_t)NULL) {
 		printf("ERROR loading DTB\n");
 		return;
