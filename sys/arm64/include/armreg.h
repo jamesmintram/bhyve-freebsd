@@ -79,7 +79,7 @@
 #define	DCZID_BS_SIZE(reg)	(((reg) & DCZID_BS_MASK) >> DCZID_BS_SHIFT)
 
 /* ESR_ELx */
-#define	ESR_ELx_ISS_MASK	0x00ffffff
+#define	ESR_ELx_ISS_MASK	0x01ffffff
 #define	 ISS_INSN_FnV		(0x01 << 10)
 #define	 ISS_INSN_EA		(0x01 << 9)
 #define	 ISS_INSN_S1PTW		(0x01 << 7)
