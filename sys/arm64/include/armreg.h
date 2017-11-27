@@ -84,17 +84,22 @@
 #define	 ISS_INSN_EA		(0x01 << 9)
 #define	 ISS_INSN_S1PTW		(0x01 << 7)
 #define	 ISS_INSN_IFSC_MASK	(0x1f << 0)
-#define	 ISS_DATA_ISV		(0x01 << 24)
-#define	 ISS_DATA_SAS_MASK	(0x03 << 22)
-#define	 ISS_DATA_SSE		(0x01 << 21)
-#define	 ISS_DATA_SRT_MASK	(0x1f << 16)
+#define	 ISS_DATA_ISV_SHIFT	24
+#define	 ISS_DATA_ISV		(0x01 << ISS_DATA_ISV_SHIFT)
+#define	 ISS_DATA_SAS_SHIFT	22
+#define	 ISS_DATA_SAS_MASK	(0x03 << ISS_DATA_SAS_SHIFT)
+#define	 ISS_DATA_SSE_SHIFT	21
+#define	 ISS_DATA_SSE		(0x01 << ISS_DATA_SSE_SHIFT)
+#define	 ISS_DATA_SRT_SHIFT	16
+#define	 ISS_DATA_SRT_MASK	(0x1f << ISS_DATA_SRT_SHIFT)
 #define	 ISS_DATA_SF		(0x01 << 15)
 #define	 ISS_DATA_AR		(0x01 << 14)
 #define	 ISS_DATA_FnV		(0x01 << 10)
 #define	 ISS_DATA_EA		(0x01 << 9)
 #define	 ISS_DATA_CM		(0x01 << 8)
 #define	 ISS_INSN_S1PTW		(0x01 << 7)
-#define	 ISS_DATA_WnR		(0x01 << 6)
+#define	 ISS_DATA_WnR_SHIFT	6
+#define	 ISS_DATA_WnR		(0x01 << ISS_DATA_WnR_SHIFT)
 #define	 ISS_DATA_DFSC_MASK	(0x3f << 0)
 #define	 ISS_DATA_DFSC_ASF_L0	(0x00 << 0)
 #define	 ISS_DATA_DFSC_ASF_L1	(0x01 << 0)
