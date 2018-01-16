@@ -522,7 +522,6 @@ vatpit_restore(struct vatpit *vatpit, void *buffer, size_t buf_size)
 
 	for (i = 0; i < 3; i++) {
 		vatpit->channel[i].mode = old_vatpit->channel[i].mode;
-		/* TODO - maybe not needed */
 		vatpit->channel[i].initial = old_vatpit->channel[i].initial;
 		vatpit->channel[i].now_bt = old_vatpit->channel[i].now_bt;
 		vatpit->channel[i].cr[0] = old_vatpit->channel[i].cr[0];
@@ -535,7 +534,6 @@ vatpit_restore(struct vatpit *vatpit, void *buffer, size_t buf_size)
 		vatpit->channel[i].frbyte = old_vatpit->channel[i].frbyte;
 		vatpit->channel[i].callout = old_vatpit->channel[i].callout;
 		vatpit->channel[i].callout_bt = old_vatpit->channel[i].callout_bt;
-		/* TODO - maybe callout_arg.vatpit pointer should be restored at this *vatpit */
 		vatpit->channel[i].callout_arg = old_vatpit->channel[i].callout_arg;
 	}
 
