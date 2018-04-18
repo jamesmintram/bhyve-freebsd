@@ -41,7 +41,7 @@ __FBSDID("$FreeBSD$");
 #include "acpi.h"
 #include "bhyverun.h"
 #include "mptbl.h"
-#include "pci_emul.h"
+#include "devemu.h"
 
 #define MPTABLE_BASE		0xF0000
 

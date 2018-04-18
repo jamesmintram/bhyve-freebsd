@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2011 NetApp, Inc.
  * All rights reserved.
  *
@@ -44,6 +46,9 @@ __FBSDID("$FreeBSD$");
 #endif
 #include <net/netmap_user.h>
 
+#ifndef WITHOUT_CAPSICUM
+#include <capsicum_helpers.h>
+#endif
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -60,11 +65,9 @@ __FBSDID("$FreeBSD$");
 #include <sysexits.h>
 
 #include "bhyverun.h"
-#include "mmio_emul.h"
+#include "devemu.h"
 #include "mevent.h"
-#include "virtio.h"
-#include "virtio_ids.h"
-#include "virtio_mmio.h"
+#include "devemu_virtio.h"
 
 #define VTNET_RINGSZ	1024
 
@@ -98,7 +101,7 @@ __FBSDID("$FreeBSD$");
     VIRTIO_F_NOTIFY_ON_EMPTY | VIRTIO_RING_F_INDIRECT_DESC)
 
 /*
- * mmio config-space "registers"
+ * PCI config-space "registers"
  */
 struct virtio_net_config {
 	uint8_t  mac[6];
@@ -130,14 +133,14 @@ struct virtio_net_rxhdr {
 /*
  * Debug printf
  */
-static int mmio_vtnet_debug;
-#define DPRINTF(params) if (mmio_vtnet_debug) printf params
+static int devemu_vtnet_debug;
+#define DPRINTF(params) if (devemu_vtnet_debug) printf params
 #define WPRINTF(params) printf params
 
 /*
  * Per-device softc
  */
-struct mmio_vtnet_softc {
+struct devemu_vtnet_softc {
 	struct virtio_softc vsc_vs;
 	struct vqueue_info vsc_queues[VTNET_MAXQ - 1];
 	pthread_mutex_t vsc_mtx;
@@ -163,26 +166,26 @@ struct mmio_vtnet_softc {
 	pthread_cond_t	tx_cond;
 	int		tx_in_progress;
 
-	void (*mmio_vtnet_rx)(struct mmio_vtnet_softc *sc);
-	void (*mmio_vtnet_tx)(struct mmio_vtnet_softc *sc, struct iovec *iov,
+	void (*devemu_vtnet_rx)(struct devemu_vtnet_softc *sc);
+	void (*devemu_vtnet_tx)(struct devemu_vtnet_softc *sc, struct iovec *iov,
 			     int iovcnt, int len);
 };
 
-static void mmio_vtnet_reset(void *);
-/* static void mmio_vtnet_notify(void *, struct vqueue_info *); */
-static int mmio_vtnet_cfgread(void *, int, int, uint32_t *);
-static int mmio_vtnet_cfgwrite(void *, int, int, uint32_t);
-static void mmio_vtnet_neg_features(void *, uint64_t);
+static void devemu_vtnet_reset(void *);
+/* static void devemu_vtnet_notify(void *, struct vqueue_info *); */
+static int devemu_vtnet_cfgread(void *, int, int, uint32_t *);
+static int devemu_vtnet_cfgwrite(void *, int, int, uint32_t);
+static void devemu_vtnet_neg_features(void *, uint64_t);
 
 static struct virtio_consts vtnet_vi_consts = {
 	"vtnet",		/* our name */
 	VTNET_MAXQ - 1,		/* we currently support 2 virtqueues */
 	sizeof(struct virtio_net_config), /* config reg size */
-	mmio_vtnet_reset,	/* reset */
+	devemu_vtnet_reset,	/* reset */
 	NULL,			/* device-wide qnotify -- not used */
-	mmio_vtnet_cfgread,	/* read mmio config */
-	mmio_vtnet_cfgwrite,	/* write mmio config */
-	mmio_vtnet_neg_features,	/* apply negotiated features */
+	devemu_vtnet_cfgread,	/* read PCI config */
+	devemu_vtnet_cfgwrite,	/* write PCI config */
+	devemu_vtnet_neg_features,	/* apply negotiated features */
 	VTNET_S_HOSTCAPS,	/* our capabilities */
 };
 
@@ -190,7 +193,7 @@ static struct virtio_consts vtnet_vi_consts = {
  * If the transmit thread is active then stall until it is done.
  */
 static void
-mmio_vtnet_txwait(struct mmio_vtnet_softc *sc)
+devemu_vtnet_txwait(struct devemu_vtnet_softc *sc)
 {
 
 	pthread_mutex_lock(&sc->tx_mtx);
@@ -206,7 +209,7 @@ mmio_vtnet_txwait(struct mmio_vtnet_softc *sc)
  * If the receive thread is active then stall until it is done.
  */
 static void
-mmio_vtnet_rxwait(struct mmio_vtnet_softc *sc)
+devemu_vtnet_rxwait(struct devemu_vtnet_softc *sc)
 {
 
 	pthread_mutex_lock(&sc->rx_mtx);
@@ -219,9 +222,9 @@ mmio_vtnet_rxwait(struct mmio_vtnet_softc *sc)
 }
 
 static void
-mmio_vtnet_reset(void *vsc)
+devemu_vtnet_reset(void *vsc)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 
 	DPRINTF(("vtnet: device reset requested !\n"));
 
@@ -231,8 +234,8 @@ mmio_vtnet_reset(void *vsc)
 	 * Wait for the transmit and receive threads to finish their
 	 * processing.
 	 */
-	mmio_vtnet_txwait(sc);
-	mmio_vtnet_rxwait(sc);
+	devemu_vtnet_txwait(sc);
+	devemu_vtnet_rxwait(sc);
 
 	sc->vsc_rx_ready = 0;
 	sc->rx_merge = 1;
@@ -248,7 +251,7 @@ mmio_vtnet_reset(void *vsc)
  * Called to send a buffer chain out to the tap device
  */
 static void
-mmio_vtnet_tap_tx(struct mmio_vtnet_softc *sc, struct iovec *iov, int iovcnt,
+devemu_vtnet_tap_tx(struct devemu_vtnet_softc *sc, struct iovec *iov, int iovcnt,
 		 int len)
 {
 	static char pad[60]; /* all zero bytes */
@@ -300,7 +303,7 @@ rx_iov_trim(struct iovec *iov, int *niov, int tlen)
 }
 
 static void
-mmio_vtnet_tap_rx(struct mmio_vtnet_softc *sc)
+devemu_vtnet_tap_rx(struct devemu_vtnet_softc *sc)
 {
 	struct iovec iov[VTNET_MAXSEGS], *riov;
 	struct vqueue_info *vq;
@@ -389,7 +392,7 @@ mmio_vtnet_tap_rx(struct mmio_vtnet_softc *sc)
 }
 
 static __inline int
-mmio_vtnet_netmap_writev(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
+devemu_vtnet_netmap_writev(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
 {
 	int r, i;
 	int len = 0;
@@ -428,7 +431,7 @@ mmio_vtnet_netmap_writev(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
 }
 
 static __inline int
-mmio_vtnet_netmap_readv(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
+devemu_vtnet_netmap_readv(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
 {
 	int len = 0;
 	int i = 0;
@@ -475,7 +478,7 @@ mmio_vtnet_netmap_readv(struct nm_desc *nmd, struct iovec *iov, int iovcnt)
  * Called to send a buffer chain out to the vale port
  */
 static void
-mmio_vtnet_netmap_tx(struct mmio_vtnet_softc *sc, struct iovec *iov, int iovcnt,
+devemu_vtnet_netmap_tx(struct devemu_vtnet_softc *sc, struct iovec *iov, int iovcnt,
 		    int len)
 {
 	static char pad[60]; /* all zero bytes */
@@ -493,11 +496,11 @@ mmio_vtnet_netmap_tx(struct mmio_vtnet_softc *sc, struct iovec *iov, int iovcnt,
 		iov[iovcnt].iov_len = 60 - len;
 		iovcnt++;
 	}
-	(void) mmio_vtnet_netmap_writev(sc->vsc_nmd, iov, iovcnt);
+	(void) devemu_vtnet_netmap_writev(sc->vsc_nmd, iov, iovcnt);
 }
 
 static void
-mmio_vtnet_netmap_rx(struct mmio_vtnet_softc *sc)
+devemu_vtnet_netmap_rx(struct devemu_vtnet_softc *sc)
 {
 	struct iovec iov[VTNET_MAXSEGS], *riov;
 	struct vqueue_info *vq;
@@ -550,7 +553,7 @@ mmio_vtnet_netmap_rx(struct mmio_vtnet_softc *sc)
 		vrx = iov[0].iov_base;
 		riov = rx_iov_trim(iov, &n, sc->rx_vhdrlen);
 
-		len = mmio_vtnet_netmap_readv(sc->vsc_nmd, riov, n);
+		len = devemu_vtnet_netmap_readv(sc->vsc_nmd, riov, n);
 
 		if (len == 0) {
 			/*
@@ -586,22 +589,22 @@ mmio_vtnet_netmap_rx(struct mmio_vtnet_softc *sc)
 }
 
 static void
-mmio_vtnet_rx_callback(int fd, enum ev_type type, void *param)
+devemu_vtnet_rx_callback(int fd, enum ev_type type, void *param)
 {
-	struct mmio_vtnet_softc *sc = param;
+	struct devemu_vtnet_softc *sc = param;
 
 	pthread_mutex_lock(&sc->rx_mtx);
 	sc->rx_in_progress = 1;
-	sc->mmio_vtnet_rx(sc);
+	sc->devemu_vtnet_rx(sc);
 	sc->rx_in_progress = 0;
 	pthread_mutex_unlock(&sc->rx_mtx);
 
 }
 
 static void
-mmio_vtnet_ping_rxq(void *vsc, struct vqueue_info *vq)
+devemu_vtnet_ping_rxq(void *vsc, struct vqueue_info *vq)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 
 	/*
 	 * A qnotify means that the rx process can now begin
@@ -613,7 +616,7 @@ mmio_vtnet_ping_rxq(void *vsc, struct vqueue_info *vq)
 }
 
 static void
-mmio_vtnet_proctx(struct mmio_vtnet_softc *sc, struct vqueue_info *vq)
+devemu_vtnet_proctx(struct devemu_vtnet_softc *sc, struct vqueue_info *vq)
 {
 	struct iovec iov[VTNET_MAXSEGS + 1];
 	int i, n;
@@ -635,16 +638,16 @@ mmio_vtnet_proctx(struct mmio_vtnet_softc *sc, struct vqueue_info *vq)
 	}
 
 	DPRINTF(("virtio: packet send, %d bytes, %d segs\n\r", plen, n));
-	sc->mmio_vtnet_tx(sc, &iov[1], n - 1, plen);
+	sc->devemu_vtnet_tx(sc, &iov[1], n - 1, plen);
 
 	/* chain is processed, release it and set tlen */
 	vq_relchain(vq, idx, tlen);
 }
 
 static void
-mmio_vtnet_ping_txq(void *vsc, struct vqueue_info *vq)
+devemu_vtnet_ping_txq(void *vsc, struct vqueue_info *vq)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 
 	/*
 	 * Any ring entries to process?
@@ -664,9 +667,9 @@ mmio_vtnet_ping_txq(void *vsc, struct vqueue_info *vq)
  * Thread which will handle processing of TX desc
  */
 static void *
-mmio_vtnet_tx_thread(void *param)
+devemu_vtnet_tx_thread(void *param)
 {
-	struct mmio_vtnet_softc *sc = param;
+	struct devemu_vtnet_softc *sc = param;
 	struct vqueue_info *vq;
 	int error;
 
@@ -702,7 +705,7 @@ mmio_vtnet_tx_thread(void *param)
 			 * iovecs and sending when an end-of-packet
 			 * is found
 			 */
-			mmio_vtnet_proctx(sc, vq);
+			devemu_vtnet_proctx(sc, vq);
 		} while (vq_has_descs(vq));
 
 		/*
@@ -716,7 +719,7 @@ mmio_vtnet_tx_thread(void *param)
 
 #ifdef notyet
 static void
-mmio_vtnet_ping_ctlq(void *vsc, struct vqueue_info *vq)
+devemu_vtnet_ping_ctlq(void *vsc, struct vqueue_info *vq)
 {
 
 	DPRINTF(("vtnet: control qnotify!\n\r"));
@@ -724,30 +727,30 @@ mmio_vtnet_ping_ctlq(void *vsc, struct vqueue_info *vq)
 #endif
 
 static int
-mmio_vtnet_parsemac(char *mac_str, uint8_t *mac_addr)
+devemu_vtnet_parsemac(char *mac_str, uint8_t *mac_addr)
 {
-        struct ether_addr *ea;
-        char *tmpstr;
-        char zero_addr[ETHER_ADDR_LEN] = { 0, 0, 0, 0, 0, 0 };
+	struct ether_addr *ea;
+	char *tmpstr;
+	char zero_addr[ETHER_ADDR_LEN] = { 0, 0, 0, 0, 0, 0 };
 
-        tmpstr = strsep(&mac_str,"=");
+	tmpstr = strsep(&mac_str,"=");
 
-        if ((mac_str != NULL) && (!strcmp(tmpstr,"mac"))) {
-                ea = ether_aton(mac_str);
+	if ((mac_str != NULL) && (!strcmp(tmpstr,"mac"))) {
+		ea = ether_aton(mac_str);
 
-                if (ea == NULL || ETHER_IS_MULTICAST(ea->octet) ||
-                    memcmp(ea->octet, zero_addr, ETHER_ADDR_LEN) == 0) {
+		if (ea == NULL || ETHER_IS_MULTICAST(ea->octet) ||
+		    memcmp(ea->octet, zero_addr, ETHER_ADDR_LEN) == 0) {
 			fprintf(stderr, "Invalid MAC %s\n", mac_str);
-                        return (EINVAL);
-                } else
-                        memcpy(mac_addr, ea->octet, ETHER_ADDR_LEN);
-        }
+			return (EINVAL);
+		} else
+			memcpy(mac_addr, ea->octet, ETHER_ADDR_LEN);
+	}
 
-        return (0);
+	return (0);
 }
 
 static void
-mmio_vtnet_tap_setup(struct mmio_vtnet_softc *sc, char *devname)
+devemu_vtnet_tap_setup(struct devemu_vtnet_softc *sc, char *devname)
 {
 	char tbuf[80];
 #ifndef WITHOUT_CAPSICUM
@@ -757,8 +760,8 @@ mmio_vtnet_tap_setup(struct mmio_vtnet_softc *sc, char *devname)
 	strcpy(tbuf, "/dev/");
 	strlcat(tbuf, devname, sizeof(tbuf));
 
-	sc->mmio_vtnet_rx = mmio_vtnet_tap_rx;
-	sc->mmio_vtnet_tx = mmio_vtnet_tap_tx;
+	sc->devemu_vtnet_rx = devemu_vtnet_tap_rx;
+	sc->devemu_vtnet_tx = devemu_vtnet_tap_tx;
 
 	sc->vsc_tapfd = open(tbuf, O_RDWR);
 	if (sc->vsc_tapfd == -1) {
@@ -779,13 +782,13 @@ mmio_vtnet_tap_setup(struct mmio_vtnet_softc *sc, char *devname)
 
 #ifndef WITHOUT_CAPSICUM
 	cap_rights_init(&rights, CAP_EVENT, CAP_READ, CAP_WRITE);
-	if (cap_rights_limit(sc->vsc_tapfd, &rights) == -1 && errno != ENOSYS)
+	if (caph_rights_limit(sc->vsc_tapfd, &rights) == -1)
 		errx(EX_OSERR, "Unable to apply rights for sandbox");
 #endif
 
 	sc->vsc_mevp = mevent_add(sc->vsc_tapfd,
 				  EVF_READ,
-				  mmio_vtnet_rx_callback,
+				  devemu_vtnet_rx_callback,
 				  sc);
 	if (sc->vsc_mevp == NULL) {
 		WPRINTF(("Could not register event\n"));
@@ -795,10 +798,10 @@ mmio_vtnet_tap_setup(struct mmio_vtnet_softc *sc, char *devname)
 }
 
 static void
-mmio_vtnet_netmap_setup(struct mmio_vtnet_softc *sc, char *ifname)
+devemu_vtnet_netmap_setup(struct devemu_vtnet_softc *sc, char *ifname)
 {
-	sc->mmio_vtnet_rx = mmio_vtnet_netmap_rx;
-	sc->mmio_vtnet_tx = mmio_vtnet_netmap_tx;
+	sc->devemu_vtnet_rx = devemu_vtnet_netmap_rx;
+	sc->devemu_vtnet_tx = devemu_vtnet_netmap_tx;
 
 	sc->vsc_nmd = nm_open(ifname, NULL, 0, 0);
 	if (sc->vsc_nmd == NULL) {
@@ -808,7 +811,7 @@ mmio_vtnet_netmap_setup(struct mmio_vtnet_softc *sc, char *ifname)
 
 	sc->vsc_mevp = mevent_add(sc->vsc_nmd->fd,
 				  EVF_READ,
-				  mmio_vtnet_rx_callback,
+				  devemu_vtnet_rx_callback,
 				  sc);
 	if (sc->vsc_mevp == NULL) {
 		WPRINTF(("Could not register event\n"));
@@ -818,33 +821,33 @@ mmio_vtnet_netmap_setup(struct mmio_vtnet_softc *sc, char *ifname)
 }
 
 static int
-mmio_vtnet_init(struct vmctx *ctx, struct mmio_devinst *mi, char *opts)
+devemu_vtnet_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 {
 	MD5_CTX mdctx;
 	unsigned char digest[16];
 	char nstr[80];
 	char tname[MAXCOMLEN + 1];
-	struct mmio_vtnet_softc *sc;
+	struct devemu_vtnet_softc *sc;
 	char *devname;
 	char *vtopts;
 	int mac_provided;
 
-	sc = calloc(1, sizeof(struct mmio_vtnet_softc));
+	sc = calloc(1, sizeof(struct devemu_vtnet_softc));
 
 	pthread_mutex_init(&sc->vsc_mtx, NULL);
 
-	vi_softc_linkup(&sc->vsc_vs, &vtnet_vi_consts, sc, mi, sc->vsc_queues);
+	vi_softc_linkup(&sc->vsc_vs, &vtnet_vi_consts, sc, di, sc->vsc_queues);
 	sc->vsc_vs.vs_mtx = &sc->vsc_mtx;
 
 	sc->vsc_queues[VTNET_RXQ].vq_qsize = VTNET_RINGSZ;
-	sc->vsc_queues[VTNET_RXQ].vq_notify = mmio_vtnet_ping_rxq;
+	sc->vsc_queues[VTNET_RXQ].vq_notify = devemu_vtnet_ping_rxq;
 	sc->vsc_queues[VTNET_TXQ].vq_qsize = VTNET_RINGSZ;
-	sc->vsc_queues[VTNET_TXQ].vq_notify = mmio_vtnet_ping_txq;
+	sc->vsc_queues[VTNET_TXQ].vq_notify = devemu_vtnet_ping_txq;
 #ifdef notyet
 	sc->vsc_queues[VTNET_CTLQ].vq_qsize = VTNET_RINGSZ;
-        sc->vsc_queues[VTNET_CTLQ].vq_notify = mmio_vtnet_ping_ctlq;
+        sc->vsc_queues[VTNET_CTLQ].vq_notify = devemu_vtnet_ping_ctlq;
 #endif
-
+ 
 	/*
 	 * Attempt to open the tap device and read the MAC address
 	 * if specified
@@ -859,7 +862,7 @@ mmio_vtnet_init(struct vmctx *ctx, struct mmio_devinst *mi, char *opts)
 		(void) strsep(&vtopts, ",");
 
 		if (vtopts != NULL) {
-			err = mmio_vtnet_parsemac(vtopts, sc->vsc_config.mac);
+			err = devemu_vtnet_parsemac(vtopts, sc->vsc_config.mac);
 			if (err != 0) {
 				free(devname);
 				return (err);
@@ -868,20 +871,19 @@ mmio_vtnet_init(struct vmctx *ctx, struct mmio_devinst *mi, char *opts)
 		}
 
 		if (strncmp(devname, "vale", 4) == 0)
-			mmio_vtnet_netmap_setup(sc, devname);
+			devemu_vtnet_netmap_setup(sc, devname);
 		if (strncmp(devname, "tap", 3) == 0 ||
 		    strncmp(devname, "vmnet", 5) == 0)
-			mmio_vtnet_tap_setup(sc, devname);
+			devemu_vtnet_tap_setup(sc, devname);
 
 		free(devname);
 	}
 
 	/*
 	 * The default MAC address is the standard NetApp OUI of 00-a0-98,
-	 * followed by an MD5 of the mmio slot/func number and dev name
+	 * followed by an MD5 of the PCI slot/func number and dev name
 	 */
 	if (!mac_provided) {
-		/* XXX: hardcoded values for slot and func */
 		snprintf(nstr, sizeof(nstr), "%d-%d-%s", 20, 20, vmname);
 
 		MD5Init(&mdctx);
@@ -897,37 +899,35 @@ mmio_vtnet_init(struct vmctx *ctx, struct mmio_devinst *mi, char *opts)
 	}
 
 	/* initialize config space */
-	mmio_set_cfgreg(mi, VIRTIO_MMIO_MAGIC_VALUE, VIRTIO_MMIO_MAGIC_NUM);
-	mmio_set_cfgreg(mi, VIRTIO_MMIO_VERSION, VIRTIO_MMIO_VERSION_NUM);
-	mmio_set_cfgreg(mi, VIRTIO_MMIO_DEVICE_ID, VIRTIO_ID_NETWORK);
-	mmio_set_cfgreg(mi, VIRTIO_MMIO_VENDOR_ID, VIRTIO_VENDOR);
+	vi_devemu_init(di, VIRTIO_TYPE_NET);
 
 	/* Link is up if we managed to open tap device or vale port. */
 	sc->vsc_config.status = (opts == NULL || sc->vsc_tapfd >= 0 ||
 	    sc->vsc_nmd != NULL);
-
+	
 	/* use BAR 1 to map MSI-X table and PBA, if we're using MSI-X */
-	if (vi_intr_init(&sc->vsc_vs))
+	if (vi_intr_init(&sc->vsc_vs, 1, fbsdrun_virtio_msix()))
 		return (1);
 
-	vi_set_mmio_mem(&sc->vsc_vs);
+	/* use BAR 0 to map config regs in IO space */
+	vi_set_io_res(&sc->vsc_vs, 0);
 
 	sc->resetting = 0;
 
 	sc->rx_merge = 1;
 	sc->rx_vhdrlen = sizeof(struct virtio_net_rxhdr);
 	sc->rx_in_progress = 0;
-	pthread_mutex_init(&sc->rx_mtx, NULL);
+	pthread_mutex_init(&sc->rx_mtx, NULL); 
 
-	/*
+	/* 
 	 * Initialize tx semaphore & spawn TX processing thread.
 	 * As of now, only one thread for TX desc processing is
-	 * spawned.
+	 * spawned. 
 	 */
 	sc->tx_in_progress = 0;
 	pthread_mutex_init(&sc->tx_mtx, NULL);
 	pthread_cond_init(&sc->tx_cond, NULL);
-	pthread_create(&sc->tx_tid, NULL, mmio_vtnet_tx_thread, (void *)sc);
+	pthread_create(&sc->tx_tid, NULL, devemu_vtnet_tx_thread, (void *)sc);
 	snprintf(tname, sizeof(tname), "vtnet-%d:%d tx", 20, 20);
         pthread_set_name_np(sc->tx_tid, tname);
 
@@ -935,9 +935,9 @@ mmio_vtnet_init(struct vmctx *ctx, struct mmio_devinst *mi, char *opts)
 }
 
 static int
-mmio_vtnet_cfgwrite(void *vsc, int offset, int size, uint32_t value)
+devemu_vtnet_cfgwrite(void *vsc, int offset, int size, uint32_t value)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 	void *ptr;
 
 	if (offset < 6) {
@@ -956,9 +956,9 @@ mmio_vtnet_cfgwrite(void *vsc, int offset, int size, uint32_t value)
 }
 
 static int
-mmio_vtnet_cfgread(void *vsc, int offset, int size, uint32_t *retval)
+devemu_vtnet_cfgread(void *vsc, int offset, int size, uint32_t *retval)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 	void *ptr;
 
 	ptr = (uint8_t *)&sc->vsc_config + offset;
@@ -967,9 +967,9 @@ mmio_vtnet_cfgread(void *vsc, int offset, int size, uint32_t *retval)
 }
 
 static void
-mmio_vtnet_neg_features(void *vsc, uint64_t negotiated_features)
+devemu_vtnet_neg_features(void *vsc, uint64_t negotiated_features)
 {
-	struct mmio_vtnet_softc *sc = vsc;
+	struct devemu_vtnet_softc *sc = vsc;
 
 	sc->vsc_features = negotiated_features;
 
@@ -980,11 +980,11 @@ mmio_vtnet_neg_features(void *vsc, uint64_t negotiated_features)
 	}
 }
 
-struct mmio_devemu mmio_de_vnet = {
-	.me_emu = 	"virtio-net",
-	.me_irq =	23,
-	.me_init =	mmio_vtnet_init,
-	.me_write =	vi_mmio_write,
-	.me_read =	vi_mmio_read
+struct devemu_dev devemu_de_vnet = {
+	.de_emu = 	"virtio-net",
+	.de_init =	devemu_vtnet_init,
+	.de_irq =	23,
+	.de_write =	vi_devemu_write,
+	.de_read =	vi_devemu_read
 };
-MMIO_EMUL_SET(mmio_de_vnet);
+DEVEMU_SET(devemu_de_vnet);

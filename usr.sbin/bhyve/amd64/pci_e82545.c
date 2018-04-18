@@ -63,7 +63,7 @@ __FBSDID("$FreeBSD$");
 #include "mii.h"
 
 #include "bhyverun.h"
-#include "pci_emul.h"
+#include "devemu.h"
 #include "mevent.h"
 
 /* Hardware/register definitions XXX: move some to common code. */

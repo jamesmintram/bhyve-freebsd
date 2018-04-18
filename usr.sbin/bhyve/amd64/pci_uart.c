@@ -36,7 +36,7 @@ __FBSDID("$FreeBSD$");
 #include <stdio.h>
 
 #include "bhyverun.h"
-#include "pci_emul.h"
+#include "devemu.h"
 #include "uart_emul.h"
 
 /*
