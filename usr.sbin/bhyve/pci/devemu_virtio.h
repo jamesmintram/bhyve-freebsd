@@ -1,4 +1,6 @@
 /*-
+ * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ *
  * Copyright (c) 2013  Chris Torek <torek @ torek net>
  * All rights reserved.
  *
@@ -211,14 +213,30 @@ struct vring_used {
 #define	VIRTIO_DEV_BLOCK	0x1001
 #define	VIRTIO_DEV_CONSOLE	0x1003
 #define	VIRTIO_DEV_RANDOM	0x1005
-
-#define	VIRTIO_MMIO_MAGIC_NUM	0x74726976
-#define	VIRTIO_MMIO_VERSION_NUM	0x2
+#define	VIRTIO_DEV_SCSI		0x1008
 
 /*
- * MMIO config space constants.
+ * PCI config space constants.
+ *
+ * If MSI-X is enabled, the ISR register is generally not used,
+ * and the configuration vector and queue vector appear at offsets
+ * 20 and 22 with the remaining configuration registers at 24.
+ * If MSI-X is not enabled, those two registers disappear and
+ * the remaining configuration registers start at offset 20.
  */
-#define VTCFG_R_CFG		0x100
+#define VTCFG_R_HOSTCAP		0
+#define VTCFG_R_GUESTCAP	4
+#define VTCFG_R_PFN		8
+#define VTCFG_R_QNUM		12
+#define VTCFG_R_QSEL		14
+#define VTCFG_R_QNOTIFY		16
+#define VTCFG_R_STATUS		18
+#define VTCFG_R_ISR		19
+#define VTCFG_R_CFGVEC		20
+#define VTCFG_R_QVEC		22
+#define VTCFG_R_CFG0		20	/* No MSI-X */
+#define VTCFG_R_CFG1		24	/* With MSI-X */
+#define VTCFG_R_MSIX		20
 
 /*
  * Bits in VTCFG_R_STATUS.  Guests need not actually set any of these,
@@ -265,7 +283,7 @@ vring_size(u_int qsz, uint32_t align)
 }
 
 struct vmctx;
-struct mmio_devinst;
+struct devemu_inst;
 struct vqueue_info;
 
 /*
@@ -306,13 +324,13 @@ struct virtio_softc {
 	struct virtio_consts *vs_vc;	/* constants (see below) */
 	int	vs_flags;		/* VIRTIO_* flags from above */
 	pthread_mutex_t *vs_mtx;	/* POSIX mutex, if any */
-	struct mmio_devinst *vs_mi;	/* MMIO device instance */
+	struct devemu_inst *vs_di;	/* device instance */
 	uint32_t vs_negotiated_caps;	/* negotiated capabilities */
-	uint32_t vs_align;		/* virtual queue alignment */
 	struct vqueue_info *vs_queues;	/* one per vc_nvq */
 	int	vs_curq;		/* current queue */
-	int	irq;			/* interrupt */
 	uint8_t	vs_status;		/* value from last status write */
+	uint8_t	vs_isr;			/* ISR flags, if not MSI-X */
+	uint16_t vs_msix_cfg_idx;	/* MSI-X vector for config event */
 };
 
 #define	VS_LOCK(vs)							\
@@ -373,12 +391,14 @@ struct vqueue_info {
 	uint16_t vq_flags;	/* flags (see above) */
 	uint16_t vq_last_avail;	/* a recent value of vq_avail->va_idx */
 	uint16_t vq_save_used;	/* saved vq_used->vu_idx; see vq_endchains */
+	uint16_t vq_msix_idx;	/* MSI-X index, or VIRTIO_MSI_NO_VECTOR */
 
 	uint32_t vq_pfn;	/* PFN of virt queue (not shifted!) */
 
 	volatile struct virtio_desc *vq_desc;	/* descriptor array */
 	volatile struct vring_avail *vq_avail;	/* the "avail" ring */
 	volatile struct vring_used *vq_used;	/* the "used" ring */
+
 };
 /* as noted above, these are sort of backwards, name-wise */
 #define VQ_AVAIL_EVENT_IDX(vq) \
@@ -392,6 +412,7 @@ struct vqueue_info {
 static inline int
 vq_ring_ready(struct vqueue_info *vq)
 {
+
 	return (vq->vq_flags & VQ_ALLOC);
 }
 
@@ -402,41 +423,37 @@ vq_ring_ready(struct vqueue_info *vq)
 static inline int
 vq_has_descs(struct vqueue_info *vq)
 {
+
 	return (vq_ring_ready(vq) && vq->vq_last_avail !=
 	    vq->vq_avail->va_idx);
 }
 
 /*
- * TODO
  * Deliver an interrupt to guest on the given virtual queue
  * (if possible, or a generic MSI interrupt if not using MSI-X).
  */
 static inline void
 vq_interrupt(struct virtio_softc *vs, struct vqueue_info *vq)
 {
-#if 0
-	if (pci_msix_enabled(vs->vs_pi))
-		pci_generate_msix(vs->vs_pi, vq->vq_msix_idx);
+
+	if (pci_msix_enabled(vs->vs_di))
+		pci_generate_msix(vs->vs_di, vq->vq_msix_idx);
 	else {
 		VS_LOCK(vs);
 		vs->vs_isr |= VTCFG_ISR_QUEUES;
-		pci_generate_msi(vs->vs_pi, 0);
-		pci_lintr_assert(vs->vs_pi);
+		pci_generate_msi(vs->vs_di, 0);
+		devemu_lintr_assert(vs->vs_di);
 		VS_UNLOCK(vs);
 	}
-#endif
-	VS_LOCK(vs);
-	mmio_lintr_assert(vs->vs_mi);
-	VS_UNLOCK(vs);
 }
 
 struct iovec;
 void	vi_softc_linkup(struct virtio_softc *vs, struct virtio_consts *vc,
-			void *dev_softc, struct mmio_devinst *mi,
+			void *dev_softc, struct devemu_inst *di,
 			struct vqueue_info *queues);
-int	vi_intr_init(struct virtio_softc *vs);
+int	vi_intr_init(struct virtio_softc *vs, int barnum, int use_msix);
 void	vi_reset_dev(struct virtio_softc *);
-void	vi_set_mmio_mem(struct virtio_softc *);
+void	vi_set_io_res(struct virtio_softc *, int);
 
 int	vq_getchain(struct vqueue_info *vq, uint16_t *pidx,
 		    struct iovec *iov, int n_iov, uint16_t *flags);
@@ -444,8 +461,9 @@ void	vq_retchain(struct vqueue_info *vq);
 void	vq_relchain(struct vqueue_info *vq, uint16_t idx, uint32_t iolen);
 void	vq_endchains(struct vqueue_info *vq, int used_all_avail);
 
-uint64_t vi_mmio_read(struct vmctx *ctx, int vcpu, struct mmio_devinst *mi,
-		      uint64_t offset, size_t size);
-void	vi_mmio_write(struct vmctx *ctx, int vcpu, struct mmio_devinst *mi,
-		      uint64_t offset, size_t size, uint64_t value);
+uint64_t vi_devemu_read(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
+			int baridx, uint64_t offset, size_t size);
+void	vi_devemu_write(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
+			int baridx, uint64_t offset, size_t size, uint64_t value);
+void	vi_devemu_init(struct devemu_inst *di, uint32_t type);
 #endif	/* _VIRTIO_H_ */
