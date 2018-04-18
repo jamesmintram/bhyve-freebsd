@@ -36,8 +36,8 @@ __FBSDID("$FreeBSD$");
 #include <pthread_np.h>
 
 #include "bhyverun.h"
-#include "pci_emul.h"
-#include "virtio.h"
+#include "devemu.h"
+#include "devemu_virtio.h"
 
 /*
  * Functions for dealing with generalized "virtual devices" as
@@ -57,7 +57,7 @@ __FBSDID("$FreeBSD$");
  */
 void
 vi_softc_linkup(struct virtio_softc *vs, struct virtio_consts *vc,
-		void *dev_softc, struct pci_devinst *pi,
+		void *dev_softc, struct devemu_devinst *di,
 		struct vqueue_info *queues)
 {
 	int i;
@@ -65,8 +65,8 @@ vi_softc_linkup(struct virtio_softc *vs, struct virtio_consts *vc,
 	/* vs and dev_softc addresses must match */
 	assert((void *)vs == dev_softc);
 	vs->vs_vc = vc;
-	vs->vs_pi = pi;
-	pi->pi_arg = vs;
+	vs->vs_di = di;
+	di->di_arg = vs;
 
 	vs->vs_queues = queues;
 	for (i = 0; i < vc->vc_nvq; i++) {
@@ -105,7 +105,7 @@ vi_reset_dev(struct virtio_softc *vs)
 	vs->vs_curq = 0;
 	/* vs->vs_status = 0; -- redundant */
 	if (vs->vs_isr)
-		pci_lintr_deassert(vs->vs_pi);
+		devemu_lintr_deassert(vs->vs_di);
 	vs->vs_isr = 0;
 	vs->vs_msix_cfg_idx = VIRTIO_MSI_NO_VECTOR;
 }
@@ -114,7 +114,7 @@ vi_reset_dev(struct virtio_softc *vs)
  * Set I/O BAR (usually 0) to map PCI config registers.
  */
 void
-vi_set_io_bar(struct virtio_softc *vs, int barnum)
+vi_set_io_res(struct virtio_softc *vs, int barnum)
 {
 	size_t size;
 
@@ -123,7 +123,7 @@ vi_set_io_bar(struct virtio_softc *vs, int barnum)
 	 * Existing code did not...
 	 */
 	size = VTCFG_R_CFG1 + vs->vs_vc->vc_cfgsize;
-	pci_emul_alloc_bar(vs->vs_pi, barnum, PCIBAR_IO, size);
+	devemu_alloc_bar(vs->vs_di, barnum, PCIBAR_IO, size);
 }
 
 /*
@@ -144,16 +144,16 @@ vi_intr_init(struct virtio_softc *vs, int barnum, int use_msix)
 		vi_reset_dev(vs); /* set all vectors to NO_VECTOR */
 		VS_UNLOCK(vs);
 		nvec = vs->vs_vc->vc_nvq + 1;
-		if (pci_emul_add_msixcap(vs->vs_pi, nvec, barnum))
+		if (pci_emul_add_msixcap(vs->vs_di, nvec, barnum))
 			return (1);
 	} else
 		vs->vs_flags &= ~VIRTIO_USE_MSIX;
 
 	/* Only 1 MSI vector for bhyve */
-	pci_emul_add_msicap(vs->vs_pi, 1);
+	pci_emul_add_msicap(vs->vs_di, 1);
 
 	/* Legacy interrupts are mandatory for virtio devices */
-	pci_lintr_request(vs->vs_pi);
+	devemu_lintr_request(vs->vs_di);
 
 	return (0);
 }
@@ -174,8 +174,8 @@ vi_vq_init(struct virtio_softc *vs, uint32_t pfn)
 	vq = &vs->vs_queues[vs->vs_curq];
 	vq->vq_pfn = pfn;
 	phys = (uint64_t)pfn << VRING_PFN;
-	size = vring_size(vq->vq_qsize);
-	base = paddr_guest2host(vs->vs_pi->pi_vmctx, phys, size);
+	size = vring_size(vq->vq_qsize, VRING_ALIGN);
+	base = paddr_guest2host(vs->vs_di->di_vmctx, phys, size);
 
 	/* First page(s) are descriptors... */
 	vq->vq_desc = (struct virtio_desc *)base;
@@ -229,8 +229,8 @@ _vq_record(int i, volatile struct virtio_desc *vd, struct vmctx *ctx,
  *
  * Basically, this vets the vd_flags and vd_next field of each
  * descriptor and tells you how many are involved.  Since some may
- * be indirect, this also needs the vmctx (in the pci_devinst
- * at vs->vs_pi) so that it can find indirect descriptors.
+ * be indirect, this also needs the vmctx (in the devemu_inst
+ * at vs->vs_di) so that it can find indirect descriptors.
  *
  * As we process each descriptor, we copy and adjust it (guest to
  * host address wise, also using the vmtctx) into the given iov[]
@@ -301,7 +301,7 @@ vq_getchain(struct vqueue_info *vq, uint16_t *pidx,
 	 * check whether we're re-visiting a previously visited
 	 * index, but we just abort if the count gets excessive.
 	 */
-	ctx = vs->vs_pi->pi_vmctx;
+	ctx = vs->vs_di->di_vmctx;
 	*pidx = next = vq->vq_avail->va_ring[idx & (vq->vq_qsize - 1)];
 	vq->vq_last_avail++;
 	for (i = 0; i < VQ_MAX_DESCRIPTORS; next = vdir->vd_next) {
@@ -522,10 +522,10 @@ vi_find_cr(int offset) {
  * Otherwise dispatch to the actual driver.
  */
 uint64_t
-vi_pci_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
-	    int baridx, uint64_t offset, int size)
+vi_devemu_read(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
+	    int baridx, uint64_t offset, size_t size)
 {
-	struct virtio_softc *vs = pi->pi_arg;
+	struct virtio_softc *vs = di->di_arg;
 	struct virtio_consts *vc;
 	struct config_reg *cr;
 	uint64_t virtio_config_size, max;
@@ -535,9 +535,9 @@ vi_pci_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 	int error;
 
 	if (vs->vs_flags & VIRTIO_USE_MSIX) {
-		if (baridx == pci_msix_table_bar(pi) ||
-		    baridx == pci_msix_pba_bar(pi)) {
-			return (pci_emul_msix_tread(pi, offset, size));
+		if (baridx == pci_msix_table_bar(di) ||
+		    baridx == pci_msix_pba_bar(di)) {
+			return (pci_emul_msix_tread(di, offset, size));
 		}
 	}
 
@@ -554,7 +554,7 @@ vi_pci_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 	if (size != 1 && size != 2 && size != 4)
 		goto bad;
 
-	if (pci_msix_enabled(pi))
+	if (pci_msix_enabled(di))
 		virtio_config_size = VTCFG_R_CFG1;
 	else
 		virtio_config_size = VTCFG_R_CFG0;
@@ -618,7 +618,7 @@ bad:
 		value = vs->vs_isr;
 		vs->vs_isr = 0;		/* a read clears this flag */
 		if (value)
-			pci_lintr_deassert(pi);
+			devemu_lintr_deassert(di);
 		break;
 	case VTCFG_R_CFGVEC:
 		value = vs->vs_msix_cfg_idx;
@@ -642,10 +642,10 @@ done:
  * Otherwise dispatch to the actual driver.
  */
 void
-vi_pci_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
-	     int baridx, uint64_t offset, int size, uint64_t value)
+vi_devemu_write(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
+		int baridx, uint64_t offset, size_t size, uint64_t value)
 {
-	struct virtio_softc *vs = pi->pi_arg;
+	struct virtio_softc *vs = di->di_arg;
 	struct vqueue_info *vq;
 	struct virtio_consts *vc;
 	struct config_reg *cr;
@@ -655,9 +655,9 @@ vi_pci_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 	int error;
 
 	if (vs->vs_flags & VIRTIO_USE_MSIX) {
-		if (baridx == pci_msix_table_bar(pi) ||
-		    baridx == pci_msix_pba_bar(pi)) {
-			pci_emul_msix_twrite(pi, offset, size, value);
+		if (baridx == pci_msix_table_bar(di) ||
+		    baridx == pci_msix_pba_bar(di)) {
+			pci_emul_msix_twrite(di, offset, size, value);
 			return;
 		}
 	}
@@ -674,7 +674,7 @@ vi_pci_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 	if (size != 1 && size != 2 && size != 4)
 		goto bad;
 
-	if (pci_msix_enabled(pi))
+	if (pci_msix_enabled(di))
 		virtio_config_size = VTCFG_R_CFG1;
 	else
 		virtio_config_size = VTCFG_R_CFG0;
@@ -774,4 +774,37 @@ bad_qindex:
 done:
 	if (vs->vs_mtx)
 		pthread_mutex_unlock(vs->vs_mtx);
+}
+
+void
+vi_devemu_init(struct devemu_inst *di, uint32_t type)
+{
+	uint32_t d, c;
+
+	switch (type) {
+	case VIRTIO_TYPE_NET:
+		d = VIRTIO_DEV_NET;
+		c = PCIC_NETOWRK;
+		break;
+	case VIRTIO_TYPE_BLOCK:
+		d = VIRTIO_DEV_BLOCK;
+		c = PCIC_STORAGE;
+		break;
+	case VIRTIO_TYPE_CONSOLE:
+		c = VIRTIO_DEV_CONSOLE;
+		d = PCIC_SIMPLECOMM;
+		break;
+	case VIRTIO_TYPE_ENTROPY:
+		c = VIRTIO_DEV_RANDOM;
+		d = PCIC_CRYPTO;
+		break;
+	default:
+		return;
+	}
+
+	devemu_set_cfgdata16(di, PCIR_DEVICE, d);
+	devemu_set_cfgdata16(di, PCIR_VENDOR, VIRTIO_VENDOR);
+	devemu_set_cfgdata8(di, PCIR_CLASS, c);
+	devemu_set_cfgdata16(di, PCIR_SUBDEV_0, type);
+	devemu_set_cfgdata16(di, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 }
