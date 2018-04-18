@@ -282,7 +282,8 @@ vq_getchain(struct vqueue_info *vq, uint16_t *pidx,
 		if (next >= vq->vq_qsize) {
 			fprintf(stderr,
 			    "%s: descriptor index %u out of range, "
-			    "driver confused?\r\n", name, next);
+			    "driver confused?\r\n",
+			    name, next);
 			return (-1);
 		}
 		vdir = &vq->vq_desc[next];
@@ -293,7 +294,8 @@ vq_getchain(struct vqueue_info *vq, uint16_t *pidx,
 		    VIRTIO_RING_F_INDIRECT_DESC) == 0) {
 			fprintf(stderr,
 			    "%s: descriptor has forbidden INDIRECT flag, "
-			    "driver confused?\r\n", name);
+			    "driver confused?\r\n",
+			    name);
 			return (-1);
 		} else {
 			n_indir = vdir->vd_len / 16;
