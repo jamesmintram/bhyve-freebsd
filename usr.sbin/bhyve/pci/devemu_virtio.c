@@ -33,7 +33,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/param.h>
 #include <sys/uio.h>
 
-#include <machine/atomic.h>
+#include <dev/pci/pcireg.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -63,7 +63,7 @@ __FBSDID("$FreeBSD$");
  */
 void
 vi_softc_linkup(struct virtio_softc *vs, struct virtio_consts *vc,
-		void *dev_softc, struct devemu_devinst *di,
+		void *dev_softc, struct devemu_inst *di,
 		struct vqueue_info *queues)
 {
 	int i;
@@ -554,7 +554,7 @@ vi_find_cr(int offset) {
  */
 uint64_t
 vi_devemu_read(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
-	    int baridx, uint64_t offset, size_t size)
+	    int baridx, uint64_t offset, int size)
 {
 	struct virtio_softc *vs = di->di_arg;
 	struct virtio_consts *vc;
@@ -674,7 +674,7 @@ done:
  */
 void
 vi_devemu_write(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
-		int baridx, uint64_t offset, size_t size, uint64_t value)
+		int baridx, uint64_t offset, int size, uint64_t value)
 {
 	struct virtio_softc *vs = di->di_arg;
 	struct vqueue_info *vq;
@@ -815,7 +815,7 @@ vi_devemu_init(struct devemu_inst *di, uint32_t type)
 	switch (type) {
 	case VIRTIO_TYPE_NET:
 		d = VIRTIO_DEV_NET;
-		c = PCIC_NETOWRK;
+		c = PCIC_NETWORK;
 		break;
 	case VIRTIO_TYPE_BLOCK:
 		d = VIRTIO_DEV_BLOCK;
