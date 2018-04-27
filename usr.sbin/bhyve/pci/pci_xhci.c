@@ -54,7 +54,7 @@ __FBSDID("$FreeBSD$");
 #include <xhcireg.h>
 
 #include "bhyverun.h"
-#include "pci_emul.h"
+#include "devemu.h"
 #include "pci_xhci.h"
 #include "usb_emul.h"
 
@@ -250,7 +250,7 @@ struct pci_xhci_dev_emu {
 };
 
 struct pci_xhci_softc {
-	struct pci_devinst *xsc_pi;
+	struct devemu_inst *xsc_di;
 
 	pthread_mutex_t	mtx;
 
@@ -285,7 +285,7 @@ struct pci_xhci_softc {
 
 #define	XHCI_HALTED(sc)		((sc)->opregs.usbsts & XHCI_STS_HCH)
 
-#define	XHCI_GADDR(sc,a)	paddr_guest2host((sc)->xsc_pi->pi_vmctx, \
+#define	XHCI_GADDR(sc,a)	paddr_guest2host((sc)->xsc_di->di_vmctx, \
 				    (a),                                 \
 				    XHCI_PADDR_SZ - ((a) & (XHCI_PADDR_SZ-1)))
 
@@ -615,10 +615,10 @@ pci_xhci_assert_interrupt(struct pci_xhci_softc *sc)
 	/* only trigger interrupt if permitted */
 	if ((sc->opregs.usbcmd & XHCI_CMD_INTE) &&
 	    (sc->rtsregs.intrreg.iman & XHCI_IMAN_INTR_ENA)) {
-		if (pci_msi_enabled(sc->xsc_pi))
-			pci_generate_msi(sc->xsc_pi, 0);
+		if (pci_msi_enabled(sc->xsc_di))
+			pci_generate_msi(sc->xsc_di, 0);
 		else
-			pci_lintr_assert(sc->xsc_pi);
+			devemu_lintr_assert(sc->xsc_di);
 	}
 }
 
@@ -626,8 +626,8 @@ static void
 pci_xhci_deassert_interrupt(struct pci_xhci_softc *sc)
 {
 
-	if (!pci_msi_enabled(sc->xsc_pi))
-		pci_lintr_assert(sc->xsc_pi);
+	if (!pci_msi_enabled(sc->xsc_di))
+		devemu_lintr_assert(sc->xsc_di);
 }
 
 static void
@@ -2205,12 +2205,12 @@ pci_xhci_hostop_write(struct pci_xhci_softc *sc, uint64_t offset,
 
 
 static void
-pci_xhci_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
+pci_xhci_write(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
                 int baridx, uint64_t offset, int size, uint64_t value)
 {
 	struct pci_xhci_softc *sc;
 
-	sc = pi->pi_arg;
+	sc = di->di_arg;
 
 	assert(baridx == 0);
 
@@ -2427,13 +2427,13 @@ pci_xhci_xecp_read(struct pci_xhci_softc *sc, uint64_t offset)
 
 
 static uint64_t
-pci_xhci_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi, int baridx,
+pci_xhci_read(struct vmctx *ctx, int vcpu, struct devemu_inst *di, int baridx,
     uint64_t offset, int size)
 {
 	struct pci_xhci_softc *sc;
 	uint32_t	value;
 
-	sc = pi->pi_arg;
+	sc = di->di_arg;
 
 	assert(baridx == 0);
 
@@ -2735,7 +2735,7 @@ done:
 }
 
 static int
-pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
+pci_xhci_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 {
 	struct pci_xhci_softc *sc;
 	int	error;
@@ -2747,8 +2747,8 @@ pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	xhci_in_use = 1;
 
 	sc = calloc(1, sizeof(struct pci_xhci_softc));
-	pi->pi_arg = sc;
-	sc->xsc_pi = pi;
+	di->di_arg = sc;
+	sc->xsc_di = di;
 
 	sc->usb2_port_start = (XHCI_MAX_DEVS/2) + 1;
 	sc->usb3_port_start = 1;
@@ -2801,21 +2801,21 @@ pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	 */
 	sc->hccparams1 |= XHCI_SET_HCCP1_XECP(sc->regsend/4);
 
-	pci_set_cfgdata16(pi, PCIR_DEVICE, 0x1E31);
-	pci_set_cfgdata16(pi, PCIR_VENDOR, 0x8086);
-	pci_set_cfgdata8(pi, PCIR_CLASS, PCIC_SERIALBUS);
-	pci_set_cfgdata8(pi, PCIR_SUBCLASS, PCIS_SERIALBUS_USB);
-	pci_set_cfgdata8(pi, PCIR_PROGIF,PCIP_SERIALBUS_USB_XHCI);
-	pci_set_cfgdata8(pi, PCI_USBREV, PCI_USB_REV_3_0);
+	devemu_set_cfgdata16(di, PCIR_DEVICE, 0x1E31);
+	devemu_set_cfgdata16(di, PCIR_VENDOR, 0x8086);
+	devemu_set_cfgdata8(di, PCIR_CLASS, PCIC_SERIALBUS);
+	devemu_set_cfgdata8(di, PCIR_SUBCLASS, PCIS_SERIALBUS_USB);
+	devemu_set_cfgdata8(di, PCIR_PROGIF,PCIP_SERIALBUS_USB_XHCI);
+	devemu_set_cfgdata8(di, PCI_USBREV, PCI_USB_REV_3_0);
 
-	pci_emul_add_msicap(pi, 1);
+	pci_emul_add_msicap(di, 1);
 
 	/* regsend + xecp registers */
-	pci_emul_alloc_bar(pi, 0, PCIBAR_MEM32, sc->regsend + 4*32);
+	devemu_alloc_bar(di, 0, PCIBAR_MEM32, sc->regsend + 4*32);
 	DPRINTF(("pci_xhci pci_emu_alloc: %d\r\n", sc->regsend + 4*32));
 
 
-	pci_lintr_request(pi);
+	devemu_lintr_request(di);
 
 	pthread_mutex_init(&sc->mtx, NULL);
 
@@ -2829,10 +2829,10 @@ done:
 
 
 
-struct pci_devemu pci_de_xhci = {
-	.pe_emu =	"xhci",
-	.pe_init =	pci_xhci_init,
-	.pe_barwrite =	pci_xhci_write,
-	.pe_barread =	pci_xhci_read
+struct devemu_dev pci_de_xhci = {
+	.de_emu =	"xhci",
+	.de_init =	pci_xhci_init,
+	.de_write =	pci_xhci_write,
+	.de_read =	pci_xhci_read
 };
-PCI_EMUL_SET(pci_de_xhci);
+DEVEMU_SET(pci_de_xhci);

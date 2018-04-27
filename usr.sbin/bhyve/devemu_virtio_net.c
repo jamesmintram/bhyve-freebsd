@@ -983,7 +983,6 @@ devemu_vtnet_neg_features(void *vsc, uint64_t negotiated_features)
 struct devemu_dev devemu_de_vnet = {
 	.de_emu = 	"virtio-net",
 	.de_init =	devemu_vtnet_init,
-	.de_irq =	23,
 	.de_write =	vi_devemu_write,
 	.de_read =	vi_devemu_read
 };

@@ -67,12 +67,12 @@ struct devemu_dev {
 	/* BAR read/write callbacks */
 	void      (*de_write)(struct vmctx *ctx, int vcpu,
 			      struct devemu_inst *di, int baridx,
-			      uint64_t offset, size_t size, uint64_t value);
+			      uint64_t offset, int size, uint64_t value);
 	uint64_t  (*de_read)(struct vmctx *ctx, int vcpu,
 			     struct devemu_inst *di, int baridx,
-			     uint64_t offset, size_t size);
+			     uint64_t offset, int size);
 };
-#define devemu_SET(x)   DATA_SET(devemu_set, x);
+#define DEVEMU_SET(x)   DATA_SET(devemu_set, x);
 
 enum pcibar_type {
 	PCIBAR_NONE,
@@ -220,7 +220,7 @@ void	devemu_callback(void);
 int	devemu_alloc_bar(struct devemu_inst *di, int idx,
 	    enum pcibar_type type, uint64_t size);
 int	devemu_alloc_pbar(struct devemu_inst *di, int idx,
-	    uint64_t hostbase, enum pcibar_type tyde, uint64_t size);
+	    uint64_t hostbase, enum pcibar_type type, uint64_t size);
 int	pci_emul_add_msicap(struct devemu_inst *di, int msgnum);
 int	pci_emul_add_pciecap(struct devemu_inst *di, int pcie_device_type);
 void	pci_generate_msi(struct devemu_inst *di, int msgnum);

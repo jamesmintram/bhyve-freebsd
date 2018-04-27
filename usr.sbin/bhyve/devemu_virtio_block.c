@@ -251,7 +251,7 @@ devemu_vtblk_proc(struct devemu_vtblk_softc *sc, struct vqueue_info *vq)
 
 	DPRINTF(("virtio-block: %s op, %zd bytes, %d segs, offset %ld\n\r",
 		 writeop ? "write" : "read/ident", iolen, i - 1,
-		 (int64_t) io->io_req.br_offset));
+		 (long long) io->io_req.br_offset));
 
 	switch (type) {
 	case VBH_OP_READ:
@@ -307,7 +307,7 @@ devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 	/*
 	 * The supplied backing file has to exist
 	 */
-	snprintf(bident, sizeof(bident), "%*s", sizeof(bident) - 1,
+	snprintf(bident, sizeof(bident), "%*s", (int) sizeof(bident) - 1,
 		 di->di_name);
 	bctxt = blockif_open(opts, bident);
 	if (bctxt == NULL) {
@@ -403,7 +403,6 @@ devemu_vtblk_cfgread(void *vsc, int offset, int size, uint32_t *retval)
 
 struct devemu_dev devemu_de_vblk = {
 	.de_emu =	"virtio-blk",
-	.de_irq =	24,
 	.de_init =	devemu_vtblk_init,
 	.de_write =	vi_devemu_write,
 	.de_read =	vi_devemu_read

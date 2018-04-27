@@ -138,7 +138,7 @@ lpc_uart_intr_assert(void *arg)
 
 	assert(sc->irq >= 0);
 
-	vm_isa_pulse_irq(lpc_bridge->pi_vmctx, sc->irq, sc->irq);
+	vm_isa_pulse_irq(lpc_bridge->di_vmctx, sc->irq, sc->irq);
 }
 
 static void
@@ -206,7 +206,7 @@ lpc_init(struct vmctx *ctx)
 			    "LPC device %s\n", name);
 			return (-1);
 		}
-		pci_irq_reserve(sc->irq);
+		devemu_irq_reserve(sc->irq);
 
 		sc->uart_softc = uart_init(lpc_uart_intr_assert,
 				    lpc_uart_intr_deassert, sc);
@@ -234,14 +234,14 @@ lpc_init(struct vmctx *ctx)
 }
 
 static void
-pci_lpc_write_dsdt(struct pci_devinst *pi)
+pci_lpc_write_dsdt(struct devemu_inst *di)
 {
 	struct lpc_dsdt **ldpp, *ldp;
 
 	dsdt_line("");
 	dsdt_line("Device (ISA)");
 	dsdt_line("{");
-	dsdt_line("  Name (_ADR, 0x%04X%04X)", pi->pi_slot, pi->pi_func);
+	dsdt_line("  Name (_ADR, 0x%04X%04X)", di->di_slot, di->di_func);
 	dsdt_line("  OperationRegion (LPCR, PCI_Config, 0x00, 0x100)");
 	dsdt_line("  Field (LPCR, AnyAcc, NoLock, Preserve)");
 	dsdt_line("  {");
@@ -354,7 +354,7 @@ pci_lpc_uart_dsdt(void)
 LPC_DSDT(pci_lpc_uart_dsdt);
 
 static int
-pci_lpc_cfgwrite(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
+pci_lpc_cfgwrite(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
 		  int coff, int bytes, uint32_t val)
 {
 	int pirq_pin;
@@ -367,7 +367,7 @@ pci_lpc_cfgwrite(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 			pirq_pin = coff - 0x68 + 5;
 		if (pirq_pin != 0) {
 			pirq_write(ctx, pirq_pin, val);
-			pci_set_cfgdata8(pi, coff, pirq_read(pirq_pin));
+			devemu_set_cfgdata8(di, coff, pirq_read(pirq_pin));
 			return (0);
 		}
 	}
@@ -375,13 +375,13 @@ pci_lpc_cfgwrite(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 }
 
 static void
-pci_lpc_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
+pci_lpc_write(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
 	       int baridx, uint64_t offset, int size, uint64_t value)
 {
 }
 
 static uint64_t
-pci_lpc_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
+pci_lpc_read(struct vmctx *ctx, int vcpu, struct devemu_inst *di,
 	      int baridx, uint64_t offset, int size)
 {
 	return (0);
@@ -391,7 +391,7 @@ pci_lpc_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 #define	LPC_VENDOR	0x8086
 
 static int
-pci_lpc_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
+pci_lpc_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 {
 
 	/*
@@ -407,7 +407,7 @@ pci_lpc_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	 * simplifies the ACPI DSDT because it can provide a decode for
 	 * all legacy i/o ports behind bus 0.
 	 */
-	if (pi->pi_bus != 0) {
+	if (di->di_bus != 0) {
 		fprintf(stderr, "LPC bridge can be present only on bus 0.\n");
 		return (-1);
 	}
@@ -416,12 +416,12 @@ pci_lpc_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 		return (-1);
 
 	/* initialize config space */
-	pci_set_cfgdata16(pi, PCIR_DEVICE, LPC_DEV);
-	pci_set_cfgdata16(pi, PCIR_VENDOR, LPC_VENDOR);
-	pci_set_cfgdata8(pi, PCIR_CLASS, PCIC_BRIDGE);
-	pci_set_cfgdata8(pi, PCIR_SUBCLASS, PCIS_BRIDGE_ISA);
+	devemu_set_cfgdata16(di, PCIR_DEVICE, LPC_DEV);
+	devemu_set_cfgdata16(di, PCIR_VENDOR, LPC_VENDOR);
+	devemu_set_cfgdata8(di, PCIR_CLASS, PCIC_BRIDGE);
+	devemu_set_cfgdata8(di, PCIR_SUBCLASS, PCIS_BRIDGE_ISA);
 
-	lpc_bridge = pi;
+	lpc_bridge = di;
 
 	return (0);
 }
@@ -446,17 +446,17 @@ lpc_pirq_routed(void)
 		return;
 
  	for (pin = 0; pin < 4; pin++)
-		pci_set_cfgdata8(lpc_bridge, 0x60 + pin, pirq_read(pin + 1));
+		devemu_set_cfgdata8(lpc_bridge, 0x60 + pin, pirq_read(pin + 1));
 	for (pin = 0; pin < 4; pin++)
-		pci_set_cfgdata8(lpc_bridge, 0x68 + pin, pirq_read(pin + 5));
+		devemu_set_cfgdata8(lpc_bridge, 0x68 + pin, pirq_read(pin + 5));
 }
 
-struct pci_devemu pci_de_lpc = {
-	.pe_emu =	"lpc",
-	.pe_init =	pci_lpc_init,
-	.pe_write_dsdt = pci_lpc_write_dsdt,
-	.pe_cfgwrite =	pci_lpc_cfgwrite,
-	.pe_barwrite =	pci_lpc_write,
-	.pe_barread =	pci_lpc_read
+struct devemu_dev pci_de_lpc = {
+	.de_emu =	"lpc",
+	.de_init =	pci_lpc_init,
+	.de_write_dsdt = pci_lpc_write_dsdt,
+	.de_cfgwrite =	pci_lpc_cfgwrite,
+	.de_write =	pci_lpc_write,
+	.de_read =	pci_lpc_read
 };
-PCI_EMUL_SET(pci_de_lpc);
+DEVEMU_SET(pci_de_lpc);
