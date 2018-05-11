@@ -50,6 +50,10 @@
 #define	CNTHCTL_EL1PCEN		(1 << 1) /* Allow EL0/1 physical timer access */
 #define	CNTHCTL_EL1PCTEN	(1 << 0) /*Allow EL0/1 physical counter access*/
 
+#define	CNTP_CTL_ENABLE		(1 << 0)
+#define	CNTP_CTL_IMASK		(1 << 1)
+#define	CNTP_CTL_ISTATUS	(1 << 2)
+
 /* CPACR_EL1 */
 #define	CPACR_FPEN_MASK		(0x3 << 20)
 #define	 CPACR_FPEN_TRAP_ALL1	(0x0 << 20) /* Traps from EL0 and EL1 */
@@ -84,6 +88,29 @@
 #define	 ISS_INSN_EA		(0x01 << 9)
 #define	 ISS_INSN_S1PTW		(0x01 << 7)
 #define	 ISS_INSN_IFSC_MASK	(0x1f << 0)
+
+#define	 ISS_MSR_DIR_SHIFT	0
+#define	 ISS_MSR_DIR		(0x01 << ISS_MSR_DIR_SHIFT)
+#define	 ISS_MSR_Rt_SHIFT	5
+#define	 ISS_MSR_Rt_MASK	(0x1f << ISS_MSR_Rt_SHIFT)
+#define	 ISS_MSR_Rt(x)		(((x) & ISS_MSR_Rt_MASK) >> ISS_MSR_Rt_SHIFT)
+#define	 ISS_MSR_CRm_SHIFT	1
+#define	 ISS_MSR_CRm_MASK	(0xf << ISS_MSR_CRm_SHIFT)
+#define	 ISS_MSR_CRm(x)		(((x) & ISS_MSR_CRm_MASK) >> ISS_MSR_CRm_SHIFT)
+#define	 ISS_MSR_CRn_SHIFT	10
+#define	 ISS_MSR_CRn_MASK	(0xf << ISS_MSR_CRn_SHIFT)
+#define	 ISS_MSR_CRn(x)		(((x) & ISS_MSR_CRn_MASK) >> ISS_MSR_CRn_SHIFT)
+#define	 ISS_MSR_OP1_SHIFT	14
+#define	 ISS_MSR_OP1_MASK	(0x7 << ISS_MSR_OP1_SHIFT)
+#define	 ISS_MSR_OP1(x)		(((x) & ISS_MSR_OP1_MASK) >> ISS_MSR_OP1_SHIFT)
+#define	 ISS_MSR_OP2_SHIFT	17
+#define	 ISS_MSR_OP2_MASK	(0x7 << ISS_MSR_OP2_SHIFT)
+#define	 ISS_MSR_OP2(x)		(((x) & ISS_MSR_OP2_MASK) >> ISS_MSR_OP2_SHIFT)
+#define	 ISS_MSR_OP0_SHIFT	20
+#define	 ISS_MSR_OP0_MASK	(0x3 << ISS_MSR_OP0_SHIFT)
+#define	 ISS_MSR_OP0(x)		(((x) & ISS_MSR_OP0_MASK) >> ISS_MSR_OP0_SHIFT)
+
+
 #define	 ISS_DATA_ISV_SHIFT	24
 #define	 ISS_DATA_ISV		(0x01 << ISS_DATA_ISV_SHIFT)
 #define	 ISS_DATA_SAS_SHIFT	22
@@ -97,7 +124,6 @@
 #define	 ISS_DATA_FnV		(0x01 << 10)
 #define	 ISS_DATA_EA		(0x01 << 9)
 #define	 ISS_DATA_CM		(0x01 << 8)
-#define	 ISS_INSN_S1PTW		(0x01 << 7)
 #define	 ISS_DATA_WnR_SHIFT	6
 #define	 ISS_DATA_WnR		(0x01 << ISS_DATA_WnR_SHIFT)
 #define	 ISS_DATA_DFSC_MASK	(0x3f << 0)
