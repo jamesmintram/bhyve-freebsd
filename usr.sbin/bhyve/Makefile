@@ -33,6 +33,7 @@ SRCS=	\
 	ioapic.c		\
 	mem.c			\
 	mevent.c		\
+	migration.c		\
 	mptbl.c			\
 	net_backends.c		\
 	net_utils.c		\
