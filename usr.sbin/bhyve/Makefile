@@ -38,6 +38,7 @@ SRCS+=	vmm_instruction_emul.c
 .include "${BHYVE_SRCTOP}/${BHYVE_BUS}/Makefile.inc"
 
 CFLAGS+=	-I${BHYVE_SRCTOP}
+CFLAGS+=	-I${BHYVE_SRCTOP}/${BHYVE_ARCH}
 CFLAGS+= 	-I${BHYVE_SYSDIR}/sys/dev/virtio
 CFLAGS+= 	-I${BHYVE_SYSDIR}/sys/dev/virtio/console
 
