@@ -47,6 +47,4 @@ CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/e1000
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/mii
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/usb/controller
 
-CFLAGS+= 	-I${BHYVE_SRCTOP}/amd64
-
 BHYVE_BUS=	pci
