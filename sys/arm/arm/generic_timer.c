@@ -155,7 +155,6 @@ get_cntxct(bool physical)
 
 	isb();
 	if (physical) {
-		//gprintf("PHYSICAL\n");
 		val = get_el0(cntpct);
 	} else {
 		val = get_el0(cntvct);
@@ -169,7 +168,6 @@ set_ctrl(uint32_t val, bool physical)
 {
 
 	if (physical) {
-		gprintf("PHYSICAL\n");
 		set_el0(cntp_ctl, val);
 	} else {
 		set_el0(cntv_ctl, val);
@@ -184,7 +182,6 @@ set_tval(uint32_t val, bool physical)
 {
 
 	if (physical) {
-		gprintf("PHYSICAL\n");
 		set_el0(cntp_tval, val);
 	} else {
 		set_el0(cntv_tval, val);
@@ -200,7 +197,6 @@ get_ctrl(bool physical)
 	uint32_t val;
 
 	if (physical) {
-		gprintf("PHYSICAL\n");
 		val = get_el0(cntp_ctl);
 	} else {
 		val = get_el0(cntv_ctl);
@@ -382,8 +378,6 @@ arm_tmr_attach(device_t dev)
 	int error;
 	int i;
 
-	gprintf("Entering\n");
-
 	sc = device_get_softc(dev);
 	if (arm_tmr_sc)
 		return (ENXIO);
@@ -413,22 +407,16 @@ arm_tmr_attach(device_t dev)
 		device_printf(dev, "could not allocate resources\n");
 		return (ENXIO);
 	}
-	if (sc->res[GT_VIRT] == NULL)
-		gprintf("sc->res[GT_VIRT] is NULL\n");
-	else
-		gprintf("sc->rs[GT_VIRT] is NOT NULL\n");
 
 	arm_tmr_sc = sc;
 
 	sc->physical = (sc->res[GT_VIRT] == NULL);
 
 	if (sc->physical) {
-		gprintf("sc->physical\n");
 		for (i = GT_PHYS_SECURE; i <= GT_PHYS_NONSECURE; i++) {
 			/* If we do not have the interrupt, skip it. */
 			if (sc->res[i] == NULL)
 				continue;
-			gprintf("Before bus_setup_intr\n");
 			error = bus_setup_intr(dev, sc->res[i], INTR_TYPE_CLK,
 				arm_tmr_intr, NULL, sc, &sc->ihl[i]);
 			if (error) {
@@ -437,8 +425,6 @@ arm_tmr_attach(device_t dev)
 			}
 		}
 	} else {
-		gprintf("NOT sc->physical\n");
-		gprintf("Before bus_setup_intr\n");
 		error = bus_setup_intr(dev, sc->res[GT_VIRT], INTR_TYPE_CLK,
 			arm_tmr_intr, NULL, sc, &sc->ihl[GT_VIRT]);
 		if (error) {
@@ -465,8 +451,6 @@ arm_tmr_attach(device_t dev)
 #if defined(__arm__)
 	arm_set_delay(arm_tmr_do_delay, sc);
 #endif
-
-	gprintf("Exiting\n");
 
 	return (0);
 }
