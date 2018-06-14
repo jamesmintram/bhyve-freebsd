@@ -15,6 +15,7 @@ SRCS+=	\
 	consport.c		\
 	dbgport.c		\
 	fwctl.c			\
+	gdb.c			\
 	inout.c			\
 	ioapic.c		\
 	mem.c			\
@@ -34,13 +35,7 @@ SRCS+=	\
 	xmsr.c			\
 	spinup_ap.c
 
-LIBADD=	z
-
-.if ${MK_OPENSSL} == "no"
-CFLAGS+=-DNO_OPENSSL
-.else
-LIBADD+=	crypto
-.endif
+LIBADD+=	z
 
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/e1000
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/mii
