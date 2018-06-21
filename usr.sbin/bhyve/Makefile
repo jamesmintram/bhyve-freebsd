@@ -23,9 +23,6 @@ SRCS=	\
 	mevent.c		\
 	sockstream.c
 
-.PATH:	${BHYVE_SYSDIR}/sys/${BHYVE_ARCH}/vmm
-SRCS+=	vmm_instruction_emul.c
-
 LIBADD=	vmmapi md pthread z util sbuf cam
 
 .if ${MK_INET_SUPPORT} != "no"
@@ -47,6 +44,9 @@ BHYVE_ARCH=	${MACHINE_ARCH}
 .else
 BHYVE_ARCH=	${MACHINE_CPUARCH}
 .endif
+
+.PATH:	${BHYVE_SYSDIR}/sys/${BHYVE_ARCH}/vmm
+SRCS+=	vmm_instruction_emul.c
 
 .include "${BHYVE_SRCTOP}/${BHYVE_ARCH}/Makefile.inc"
 .include "${BHYVE_SRCTOP}/${BHYVE_BUS}/Makefile.inc"
