@@ -88,6 +88,13 @@ __FBSDID("$FreeBSD$");
 #define	GT_CNTKCTL_PL0VCTEN	(1 << 1) /* PL0 CNTVCT and CNTFRQ access */
 #define	GT_CNTKCTL_PL0PCTEN	(1 << 0) /* PL0 CNTPCT and CNTFRQ access */
 
+#define	GT_PHYS_SECURE		0
+#define	GT_PHYS_NONSECURE	1
+#define	GT_VIRT			2
+#define	GT_HYP			3
+
+extern char hypmode_enabled[];
+
 struct arm_tmr_softc {
 	struct resource		*res[4];
 	void			*ihl[4];
@@ -433,13 +440,10 @@ arm_tmr_attach(device_t dev)
 		return (ENXIO);
 	}
 
+	sc->physical = (sc->res[GT_VIRT] == NULL);
 #ifdef __arm__
-	sc->physical = true;
-#else /* __aarch64__ */
-	/* If we do not have a virtual timer use the physical. */
-	sc->physical = (sc->res[2] == NULL) ? true : false;
+	sc->physical |= (hypmode_enabled[0] == 0);
 #endif
-
 	arm_tmr_sc = sc;
 
 	/* Setup secure, non-secure and virtual IRQs handler */
