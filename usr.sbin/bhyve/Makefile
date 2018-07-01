@@ -23,7 +23,7 @@ SRCS=	\
 	mevent.c		\
 	sockstream.c
 
-LIBADD=	vmmapi md pthread z util sbuf cam
+LIBADD=	vmmapi md pthread
 
 .if ${MK_INET_SUPPORT} != "no"
 CFLAGS+=-DINET

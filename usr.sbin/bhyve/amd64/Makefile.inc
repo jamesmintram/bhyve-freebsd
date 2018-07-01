@@ -35,7 +35,7 @@ SRCS+=	\
 	xmsr.c			\
 	spinup_ap.c
 
-LIBADD+=	z
+LIBADD+=	z util sbuf cam
 
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/e1000
 CFLAGS+=	-I${BHYVE_SYSDIR}/sys/dev/mii
