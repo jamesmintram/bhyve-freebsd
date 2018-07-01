@@ -25,7 +25,7 @@ SRCS=	\
 	mevent.c		\
 	sockstream.c
 
-LIBADD=	vmmapi md pthread z util sbuf cam
+LIBADD=	vmmapi md pthread
 
 .if exists(${BHYVE_SRCTOP}/${MACHINE})
 BHYVE_ARCH=	${MACHINE}
