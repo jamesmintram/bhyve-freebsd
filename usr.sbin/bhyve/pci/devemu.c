@@ -1739,13 +1739,8 @@ devemu_cmdsts_write(struct devemu_inst *di, int coff, uint32_t new, int bytes)
 	 * If INTx has been unmasked and is pending, assert the
 	 * interrupt.
 	 */
-<<<<<<< HEAD:usr.sbin/bhyve/amd64/pci_emul.c
-	pci_lintr_update(pi);
-}
-=======
 	devemu_lintr_update(di);
-}	
->>>>>>> 3bb26c22632... Begin bhyve device emulation rebase:usr.sbin/bhyve/pci/devemu.c
+}
 
 static void
 devemu_cfgrw(struct vmctx *ctx, int vcpu, int in, int bus, int slot, int func,
