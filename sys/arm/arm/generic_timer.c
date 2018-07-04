@@ -93,7 +93,9 @@ __FBSDID("$FreeBSD$");
 #define	GT_VIRT			2
 #define	GT_HYP			3
 
+#ifdef __arm__
 extern char hypmode_enabled[];
+#endif
 
 struct arm_tmr_softc {
 	struct resource		*res[4];
