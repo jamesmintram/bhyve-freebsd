@@ -6,7 +6,7 @@ trap 'cd ${OLDDIR}' INT HUP TERM
 
 
 export BASEDIR="/root/freebsd/"
-RAMDISKDIR="/root/bhyvearm-utils/ramdisk/"
+export RAMDISKDIR="/root/bhyvearm-utils/ramdisk/"
 MAKEFILE="${BASEDIR}/Makefile"
 OLDDIR=`pwd`
 DEFINES=""
