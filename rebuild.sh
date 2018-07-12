@@ -4,18 +4,20 @@ set -e
 
 trap 'cd ${OLDDIR}' INT HUP TERM
 
-
-export BASEDIR="/root/freebsd/"
-export RAMDISKDIR="/root/bhyvearm-utils/ramdisk/"
-MAKEFILE="${BASEDIR}/Makefile"
+# Update this to the name of the directory where you work
+# It is expected that the 'freebsd' (this) repository and the 'projects/bhyvearm' repositories are there
+export WORKDIR=/root
+export SRCDIR=${WORKDIR}/freebsd
+export RAMDISKDIR=${WORKDIR}/bhyvearm-utils/ramdisk
+MAKEFILE=${SRCDIR}/Makefile
 OLDDIR=`pwd`
 DEFINES=""
 
 export TARGET=arm
 export TARGET_ARCH=armv6
 export PLATFORM=${PLATFORM:-FVP_VE_CORTEX_A15x1}
-export MAKEOBJDIRPREFIX=/root/freebsd-obj/
-export ODIR=${ODIR:-${MAKEOBJDIRPREFIX}/${BASEDIR}/${TARGET}.${TARGET_ARCH}/}
+export MAKEOBJDIRPREFIX=${WORKDIR}/freebsd-obj
+export ODIR=${ODIR:-${MAKEOBJDIRPREFIX}/${SRCDIR}/${TARGET}.${TARGET_ARCH}}
 
 
 usage() {
@@ -59,7 +61,7 @@ build_world() {
 
 
 
-cd ${BASEDIR}
+cd ${SRCDIR}
 
 if [ $# -lt 1 ]; then usage; fi
 
