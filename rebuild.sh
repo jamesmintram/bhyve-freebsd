@@ -6,7 +6,9 @@ trap 'cd ${OLDDIR}' INT HUP TERM
 
 # Update this to the name of the directory where you work
 # It is expected that the 'freebsd' (this) repository and the 'projects/bhyvearm' repositories are there
-export WORKDIR=/root
+# By default it is set to two levels above the location of rebuild.sh script
+SCRIPTNAME=`readlink -f ${0}`
+export WORKDIR=${SCRIPTNAME%/*/*}
 export SRCDIR=${WORKDIR}/freebsd
 
 export UTILSDIR=${WORKDIR}/bhyvearm-utils
