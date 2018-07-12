@@ -8,7 +8,10 @@ trap 'cd ${OLDDIR}' INT HUP TERM
 # It is expected that the 'freebsd' (this) repository and the 'projects/bhyvearm' repositories are there
 export WORKDIR=/root
 export SRCDIR=${WORKDIR}/freebsd
-export RAMDISKDIR=${WORKDIR}/bhyvearm-utils/ramdisk
+
+export UTILSDIR=${WORKDIR}/bhyvearm-utils
+export BOOTWRAPPERDIR=${UTILSDIR}/boot-wrapper
+export RAMDISKDIR=${UTILSDIR}/ramdisk
 MAKEFILE=${SRCDIR}/Makefile
 OLDDIR=`pwd`
 DEFINES=""
@@ -66,6 +69,16 @@ cd ${SRCDIR}
 if [ $# -lt 1 ]; then usage; fi
 
 date
+
+if [ ! -d ${UTILSDIR} ]; then
+    echo "The bhyvearm-utils directory does not exist. Cloning it..."
+    git clone https://github.com/FreeBSD-UPB/bhyvearm-utils ${UTILSDIR}
+fi
+
+if [ ! -f ${BOOTWRAPPERDIR}/linux-system-semi.axf ]; then
+    echo "${BOOTWRAPPERDIR}/linux-system-semi.axf does not exist. Building it..."
+    (cd ${BOOTWRAPPERDIR}; ./build_freebsd.sh)
+fi
 
 while getopts "aghlwAGHLW" opt; do
     case "${opt}" in
