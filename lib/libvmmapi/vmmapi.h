@@ -301,4 +301,6 @@ int	vm_restore_time(struct vmctx *ctx);
 
 int	vm_restore_mem(struct vmctx *ctx, int vmmem_fd, size_t size);
 
+void	vm_clear_vmm_dirty_bits(struct vmctx *ctx);
+
 #endif	/* _VMMAPI_H_ */

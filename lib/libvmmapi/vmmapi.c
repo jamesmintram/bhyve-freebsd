@@ -1736,6 +1736,14 @@ vm_restore_req(struct vmctx *ctx, enum snapshot_req req, char *buffer, size_t si
 	return (error);
 }
 
+
+void
+vm_clear_vmm_dirty_bits(struct vmctx *ctx)
+{
+
+	ioctl(ctx->fd, VM_CLEAR_VMM_DIRTY_BITS);
+}
+
 int
 vm_restore_time(struct vmctx *ctx)
 {

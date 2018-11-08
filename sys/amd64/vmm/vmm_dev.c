@@ -817,6 +817,9 @@ vmmdev_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 	case VM_RESTORE_TIME:
 		error = vm_restore_time(sc->vm);
 		break;
+	case VM_CLEAR_VMM_DIRTY_BITS:
+		error = vm_clear_vmm_dirty_bits(sc->vm);
+		break;
 	default:
 		error = ENOTTY;
 		break;
