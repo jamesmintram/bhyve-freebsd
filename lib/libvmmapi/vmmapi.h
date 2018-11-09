@@ -41,12 +41,7 @@
  */
 #define	VMMAPI_VERSION	0103	/* 2 digit major followed by 2 digit minor */
 
-struct vmmem;
-struct vmctx {
-	int	fd;
-	struct vmmem *mem;
-	char	*name;
-};
+struct vmctx;
 
 /*
  * 'flags' value passed to 'vm_set_memflags()'.
@@ -69,6 +64,7 @@ int	vm_parse_memsize(const char *optarg, size_t *memsize);
 int	vm_create(const char *name);
 struct vmctx *vm_open(const char *name);
 int	vm_get_device_fd(struct vmctx *ctx);
+const char *vm_get_name(struct vmctx *ctx);
 void	vm_destroy(struct vmctx *ctx);
 int	vm_run(struct vmctx *ctx, int vcpu, struct vm_exit *ret_vmexit);
 

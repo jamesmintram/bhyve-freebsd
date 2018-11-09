@@ -69,60 +69,97 @@ __FBSDID("$FreeBSD$");
 #define	PROT_RW		(PROT_READ | PROT_WRITE)
 #define	PROT_ALL	(PROT_READ | PROT_WRITE | PROT_EXEC)
 
-struct vmmem {
+
+struct vmctx {
+	int	fd;
 	uint32_t lowmem_limit;
 	int	memflags;
 	size_t	lowmem;
 	size_t	highmem;
 	char	*baseaddr;
+	char	*name;
 };
 
-void
-vm_init_memory(struct vmctx *ctx)
+static int
+vm_device_open(const char *name)
 {
-	struct vmmem *mem;
+	int fd, len;
+	char *vmfile;
 
-	mem = calloc(1, sizeof(struct vmmem));
-	assert(mem != NULL);
+	len = strlen("/dev/vmm/") + strlen(name) + 1;
+	vmfile = malloc(len);
+	assert(vmfile != NULL);
+	snprintf(vmfile, len, "/dev/vmm/%s", name);
 
-	mem->memflags = 0;
-	mem->lowmem_limit = 3 * GB;
+	/* Open the device file */
+	fd = open(vmfile, O_RDWR, 0);
 
-	ctx->mem = mem;
+	free(vmfile);
+	return (fd);
 }
 
-void
-vm_destroy_memory(struct vmctx *ctx)
+struct vmctx *
+vm_open(const char *name)
 {
-	free(ctx->mem);
+	struct vmctx *vm;
+
+	vm = calloc(1, sizeof(struct vmctx) + strlen(name) + 1);
+	assert(vm != NULL);
+
+	vm->fd = -1;
+	vm->memflags = 0;
+	vm->lowmem_limit = 3 * GB;
+	vm->name = (char *)(vm + 1);
+	strcpy(vm->name, name);
+
+	if ((vm->fd = vm_device_open(vm->name)) < 0)
+		goto err;
+
+	return (vm);
+err:
+	vm_destroy(vm);
+	return (NULL);
+}
+
+int
+vm_get_device_fd(struct vmctx *ctx)
+{
+
+	return (ctx->fd);
+}
+
+const char *
+vm_get_name(struct vmctx *ctx)
+{
+	return (ctx->name);
 }
 
 uint32_t
 vm_get_lowmem_limit(struct vmctx *ctx)
 {
 
-	return (ctx->mem->lowmem_limit);
+	return (ctx->lowmem_limit);
 }
 
 void
 vm_set_lowmem_limit(struct vmctx *ctx, uint32_t limit)
 {
 
-	ctx->mem->lowmem_limit = limit;
+	ctx->lowmem_limit = limit;
 }
 
 void
 vm_set_memflags(struct vmctx *ctx, int flags)
 {
 
-	ctx->mem->memflags = flags;
+	ctx->memflags = flags;
 }
 
 int
 vm_get_memflags(struct vmctx *ctx)
 {
 
-	return (ctx->mem->memflags);
+	return (ctx->memflags);
 }
 
 /*
@@ -142,7 +179,7 @@ vm_mmap_memseg(struct vmctx *ctx, vm_paddr_t gpa, int segid, vm_ooffset_t off,
 	memmap.prot = prot;
 	memmap.flags = 0;
 
-	if (ctx->mem->memflags & VM_MEM_F_WIRED)
+	if (ctx->memflags & VM_MEM_F_WIRED)
 		memmap.flags |= VM_MEMMAP_F_WIRED;
 
 	/*
@@ -267,11 +304,8 @@ vm_get_memseg(struct vmctx *ctx, int segid, size_t *lenp, char *namebuf,
 static int
 setup_memory_segment(struct vmctx *ctx, vm_paddr_t gpa, size_t len, char *base)
 {
-	struct vmmem *mem;
 	char *ptr;
 	int error, flags;
-
-	mem = ctx->mem;
 
 	/* Map 'len' bytes starting at 'gpa' in the guest address space */
 	error = vm_mmap_memseg(ctx, gpa, VM_SYSMEM, gpa, len, PROT_ALL);
@@ -279,7 +313,7 @@ setup_memory_segment(struct vmctx *ctx, vm_paddr_t gpa, size_t len, char *base)
 		return (error);
 
 	flags = MAP_SHARED | MAP_FIXED;
-	if ((mem->memflags & VM_MEM_F_INCORE) == 0)
+	if ((ctx->memflags & VM_MEM_F_INCORE) == 0)
 		flags |= MAP_NOCORE;
 
 	/* mmap into the process address space on the host */
@@ -293,7 +327,6 @@ setup_memory_segment(struct vmctx *ctx, vm_paddr_t gpa, size_t len, char *base)
 int
 vm_setup_memory(struct vmctx *ctx, size_t memsize, enum vm_mmap_style vms)
 {
-	struct vmmem *mem;
 	size_t objsize, len;
 	vm_paddr_t gpa;
 	char *baseaddr, *ptr;
@@ -301,20 +334,18 @@ vm_setup_memory(struct vmctx *ctx, size_t memsize, enum vm_mmap_style vms)
 
 	assert(vms == VM_MMAP_ALL);
 
-	mem = ctx->mem;
-
 	/*
 	 * If 'memsize' cannot fit entirely in the 'lowmem' segment then
 	 * create another 'highmem' segment above 4GB for the remainder.
 	 */
-	if (memsize > mem->lowmem_limit) {
-		mem->lowmem = mem->lowmem_limit;
-		mem->highmem = memsize - mem->lowmem_limit;
-		objsize = 4*GB + mem->highmem;
+	if (memsize > ctx->lowmem_limit) {
+		ctx->lowmem = ctx->lowmem_limit;
+		ctx->highmem = memsize - ctx->lowmem_limit;
+		objsize = 4*GB + ctx->highmem;
 	} else {
-		mem->lowmem = memsize;
-		mem->highmem = 0;
-		objsize = mem->lowmem;
+		ctx->lowmem = memsize;
+		ctx->highmem = 0;
+		objsize = ctx->lowmem;
 	}
 
 	error = vm_alloc_memseg(ctx, VM_SYSMEM, objsize, NULL);
@@ -331,23 +362,23 @@ vm_setup_memory(struct vmctx *ctx, size_t memsize, enum vm_mmap_style vms)
 		return (-1);
 
 	baseaddr = ptr + VM_MMAP_GUARD_SIZE;
-	if (mem->highmem > 0) {
+	if (ctx->highmem > 0) {
 		gpa = 4*GB;
-		len = mem->highmem;
+		len = ctx->highmem;
 		error = setup_memory_segment(ctx, gpa, len, baseaddr);
 		if (error)
 			return (error);
 	}
 
-	if (mem->lowmem > 0) {
+	if (ctx->lowmem > 0) {
 		gpa = 0;
-		len = mem->lowmem;
+		len = ctx->lowmem;
 		error = setup_memory_segment(ctx, gpa, len, baseaddr);
 		if (error)
 			return (error);
 	}
 
-	mem->baseaddr = baseaddr;
+	ctx->baseaddr = baseaddr;
 
 	return (0);
 }
@@ -362,22 +393,18 @@ vm_setup_memory(struct vmctx *ctx, size_t memsize, enum vm_mmap_style vms)
 void *
 vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len)
 {
-	struct vmmem *mem;
-
-	mem = ctx->mem;
-
-	if (mem->lowmem > 0) {
-		if (gaddr < mem->lowmem && len <= mem->lowmem &&
-		    gaddr + len <= mem->lowmem)
-			return (mem->baseaddr + gaddr);
+	if (ctx->lowmem > 0) {
+		if (gaddr < ctx->lowmem && len <= ctx->lowmem &&
+		    gaddr + len <= ctx->lowmem)
+			return (ctx->baseaddr + gaddr);
 	}
 
-	if (mem->highmem > 0) {
+	if (ctx->highmem > 0) {
                 if (gaddr >= 4*GB) {
-			if (gaddr < 4*GB + mem->highmem &&
-			    len <= mem->highmem &&
-			    gaddr + len <= 4*GB + mem->highmem)
-				return (mem->baseaddr + gaddr);
+			if (gaddr < 4*GB + ctx->highmem &&
+			    len <= ctx->highmem &&
+			    gaddr + len <= 4*GB + ctx->highmem)
+				return (ctx->baseaddr + gaddr);
 		}
 	}
 
@@ -388,14 +415,14 @@ size_t
 vm_get_lowmem_size(struct vmctx *ctx)
 {
 
-	return (ctx->mem->lowmem);
+	return (ctx->lowmem);
 }
 
 size_t
 vm_get_highmem_size(struct vmctx *ctx)
 {
 
-	return (ctx->mem->highmem);
+	return (ctx->highmem);
 }
 
 void *
@@ -437,7 +464,7 @@ vm_create_devmem(struct vmctx *ctx, int segid, const char *name, size_t len)
 		goto done;
 
 	flags = MAP_SHARED | MAP_FIXED;
-	if ((ctx->mem->memflags & VM_MEM_F_INCORE) == 0)
+	if ((ctx->memflags & VM_MEM_F_INCORE) == 0)
 		flags |= MAP_NOCORE;
 
 	/* mmap the devmem region in the host address space */
