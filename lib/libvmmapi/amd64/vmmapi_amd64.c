@@ -708,35 +708,6 @@ vm_capability_type2name(int type)
 }
 
 int
-vm_get_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap,
-		  int *retval)
-{
-	int error;
-	struct vm_capability vmcap;
-
-	bzero(&vmcap, sizeof(vmcap));
-	vmcap.cpuid = vcpu;
-	vmcap.captype = cap;
-
-	error = ioctl(ctx->fd, VM_GET_CAPABILITY, &vmcap);
-	*retval = vmcap.capval;
-	return (error);
-}
-
-int
-vm_set_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap, int val)
-{
-	struct vm_capability vmcap;
-
-	bzero(&vmcap, sizeof(vmcap));
-	vmcap.cpuid = vcpu;
-	vmcap.captype = cap;
-	vmcap.capval = val;
-
-	return (ioctl(ctx->fd, VM_SET_CAPABILITY, &vmcap));
-}
-
-int
 vm_get_x2apic_state(struct vmctx *ctx, int vcpu, enum x2apic_state *state)
 {
 	int error;
@@ -1014,14 +985,6 @@ vm_rtc_gettime(struct vmctx *ctx, time_t *secs)
 	if (error == 0)
 		*secs = rtctime.secs;
 	return (error);
-}
-
-int
-vm_restart_instruction(void *arg, int vcpu)
-{
-	struct vmctx *ctx = arg;
-
-	return (ioctl(ctx->fd, VM_RESTART_INSTRUCTION, &vcpu));
 }
 
 const cap_ioctl_t *

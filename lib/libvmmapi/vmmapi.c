@@ -76,10 +76,13 @@ vm_create(const char *name)
 void
 vm_destroy(struct vmctx *vm)
 {
+	int fd;
+
 	assert(vm != NULL);
 
-	if (vm_get_device_fd(vm) >= 0)
-		close(vm_get_device_fd(vm));
+	fd = vm_get_device_fd(vm);
+	if (fd >= 0)
+		close(fd);
 	DESTROY(vm_get_name(vm));
 
 	free(vm);
@@ -586,4 +589,41 @@ vm_copyout(struct vmctx *ctx, int vcpu, const void *vp, struct iovec *iov,
 		src += n;
 		len -= n;
 	}
+}
+
+int
+vm_get_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap,
+		  int *retval)
+{
+	int error;
+	struct vm_capability vmcap;
+
+	bzero(&vmcap, sizeof(vmcap));
+	vmcap.cpuid = vcpu;
+	vmcap.captype = cap;
+
+	error = ioctl(vm_get_device_fd(ctx), VM_GET_CAPABILITY, &vmcap);
+	*retval = vmcap.capval;
+	return (error);
+}
+
+int
+vm_set_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap, int val)
+{
+	struct vm_capability vmcap;
+
+	bzero(&vmcap, sizeof(vmcap));
+	vmcap.cpuid = vcpu;
+	vmcap.captype = cap;
+	vmcap.capval = val;
+
+	return (ioctl(vm_get_device_fd(ctx), VM_SET_CAPABILITY, &vmcap));
+}
+
+int
+vm_restart_instruction(void *arg, int vcpu)
+{
+	struct vmctx *ctx = arg;
+
+	return (ioctl(ctx->fd, VM_RESTART_INSTRUCTION, &vcpu));
 }

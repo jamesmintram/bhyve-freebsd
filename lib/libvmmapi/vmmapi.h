@@ -136,13 +136,18 @@ void	vm_copy_teardown(struct vmctx *ctx, int vcpu, struct iovec *iov,
 
 /* Machine-dependent implementations. */
 int	vm_setup_memory(struct vmctx *ctx, size_t len, enum vm_mmap_style s);
-void	vm_init_memory(struct vmctx *ctx);
-void	vm_destroy_memory(struct vmctx *ctx);
 void	*vm_map_gpa(struct vmctx *ctx, vm_paddr_t gaddr, size_t len);
 void	vm_set_memflags(struct vmctx *ctx, int flags);
 int	vm_get_memflags(struct vmctx *ctx);
 
 const cap_ioctl_t *vm_get_ioctls(size_t *len);
+
+int	vm_capability_name2type(const char *capname);
+const char *vm_capability_type2name(int type);
+int	vm_get_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap,
+			  int *retval);
+int	vm_set_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap,
+			  int val);
 
 #if defined(__amd64__)
 #include <amd64/vmmapi_amd64.h>
