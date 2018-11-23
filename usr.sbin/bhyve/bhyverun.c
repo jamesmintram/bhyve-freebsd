@@ -1321,18 +1321,18 @@ main(int argc, char *argv[])
 
 
 	/*
-	 * Add CPU 0
 	 * Change the proc title to include the VM name.
 	 */
 	setproctitle("%s", vmname); 
 
-	/* If we restore a VM, start all vCPUs now (including APs), otherwise,
-	 * let the guest OS to spin them up later via vmexits.
-	 */
-
 	if (restore_file != NULL || receive_migration) {
 		vm_restore_time(ctx);
 	}
+
+	/* Add CPU 0
+	 * If we restore a VM, start all vCPUs now (including APs), otherwise,
+	 * let the guest OS to spin them up later via vmexits.
+	 */
 
 	for (vcpu = 0; vcpu < guest_ncpus; vcpu++)
 		if (vcpu == BSP || restore_file || receive_migration) {
