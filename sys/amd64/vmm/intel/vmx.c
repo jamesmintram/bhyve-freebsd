@@ -2666,12 +2666,6 @@ vmx_exit_process(struct vmx *vmx, int vcpu, struct vm_exit *vmexit)
 	case EXIT_REASON_VMXON:
 		SDT_PROBE3(vmm, vmx, exit, vminsn, vmx, vcpu, vmexit);
 		vmexit->exitcode = VM_EXITCODE_VMINSN;
-	case EXIT_REASON_RDTSC:
-		error = vmx_restore_tsc_offset(vmx, vcpu);
-		KASSERT(error == 0, ("%s: rdtsc trap handle failed %d",
-		    __func__, error));
-		vmexit->exitcode = VM_EXITCODE_RDTSC;
-		break;
 	default:
 		SDT_PROBE4(vmm, vmx, exit, unknown,
 		    vmx, vcpu, vmexit, reason);
