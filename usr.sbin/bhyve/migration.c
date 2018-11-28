@@ -2124,6 +2124,96 @@ end:
 	return (error);
 }
 
+#define MIGRATION_ROUNDS	1
+
+static size_t
+num_dirty_pages(char *page_list, size_t size)
+{
+	size_t num = 0;
+	size_t i;
+
+	for (i = 0; i < size; i++)
+		if (page_list[i] == 1)
+			num++;
+
+	return (num);
+}
+
+static int
+migration_fill_vmm_migration_pages_req(struct vmctx *ctx,
+				       struct vmm_migration_pages_req *req,
+				       char *page_list,
+				       size_t size,
+				       size_t *current_position)
+{
+	size_t i, count;
+
+	count = 0;
+	for (i = *current_position; i < size; i++) {
+		if (count == VMM_PAGE_CHUNK)
+			break;
+
+		if (page_list[i] == 1) {
+			req->pages[count].pindex = i;
+			count ++;
+		}
+	}
+
+	*current_position = i;
+	req->pages_required = count;
+	req->req_type = VMM_GET_PAGES;
+
+	return vm_copy_vmm_pages(ctx, req);
+}
+
+static int
+search_dirty_pages(struct vmctx *ctx, char *page_list)
+{
+	size_t lowmem_pages, highmem_pages;
+	int error = 0;
+
+	error = vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
+	if (error != 0) {
+		fprintf(stderr,
+			"%s: Error while trying to get page number\r\n",
+			__func__);
+		return (-1);
+	}
+
+	if (highmem_pages != 0) {
+		fprintf(stderr,
+			"%s: Highmem migration not implemented\r\n",
+			__func__);
+		return (-1);
+	}
+
+	if (page_list == NULL)
+		return (-1);
+
+	/* TODO: implement ioctl and function into libvmmapi */
+
+	vm_get_dirty_page_list(ctx, page_list);
+	return (0);
+}
+
+static inline void
+fill_page_list(char *page_list, size_t list_len, char c)
+{
+	size_t index;
+
+	if (page_list == NULL)
+		return;
+
+	for (index = 0; index < list_len; index ++)
+		page_list[index] = c;
+}
+
+static inline void
+clear_vmm_dirty_bits(struct vmctx *ctx)
+{
+	vm_clear_vmm_dirty_bits(ctx);
+}
+
 int
 vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 {
