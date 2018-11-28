@@ -1825,11 +1825,20 @@ vm_init_vmm_migration_pages_req(struct vmm_migration_pages_req *req)
 			fprintf(stderr,
 			"%s: page %zu is NULL\r\n",
 			__func__, index);
-			return (-1);
+			goto deallocate_error;
 		}
 	}
 
 	return (0);
+
+deallocate_error:
+	for (index = 0; index < VMM_PAGE_CHUNK; index ++) {
+		page = &req->pages[index];
+		if (page->page != NULL)
+			free(page->page);
+	}
+
+	return (-1);
 }
 
 int
