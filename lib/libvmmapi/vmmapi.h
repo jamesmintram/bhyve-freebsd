@@ -275,9 +275,10 @@ void	vm_setup_freebsd_gdt(uint64_t *gdtr);
 #define KERN_DATA_BUFFER_SIZE (4 * MB)
 
 enum checkpoint_opcodes {
-	START_CHECKPOINT = 0,
-	START_SUSPEND = 1,
-	START_MIGRATE = 2,
+	START_CHECKPOINT	= 0,
+	START_SUSPEND		= 1,
+	START_MIGRATE		= 2,
+	START_MIGRATE_LIVE	= 3,
 };
 
 struct __attribute__((packed)) checkpoint_op {
