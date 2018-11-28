@@ -1125,7 +1125,7 @@ int get_checkpoint_msg(int conn_fd, struct vmctx *ctx)
 				checkpoint_op->host,
 				checkpoint_op->port);
 
-			err = vm_send_migrate_req(ctx, req);
+			err = vm_send_migrate_req(ctx, req, false);
 			break;
 		case START_MIGRATE_LIVE:
 			fprintf(stdout, "Starting the live migration procedure\r\n");
@@ -2113,7 +2113,7 @@ end:
 }
 
 int
-vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req)
+vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 {
 	unsigned char ipv4_addr[MAX_IP_LEN];
 	unsigned char ipv6_addr[MAX_IP_LEN];
