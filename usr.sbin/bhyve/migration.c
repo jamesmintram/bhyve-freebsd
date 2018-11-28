@@ -2341,6 +2341,246 @@ clear_vmm_dirty_bits(struct vmctx *ctx)
 	vm_clear_vmm_dirty_bits(ctx);
 }
 
+static int
+live_migrate_send(struct vmctx *ctx, int socket)
+{
+	int error = 0;
+	size_t memory_size = 0, lowmem_size = 0, highmem_size = 0;
+	size_t lowmem_pages, highmem_pages;
+	char *baseaddr;
+
+	char *page_list_indexes = NULL;
+	struct vmm_migration_pages_req memory_req;
+	int index;
+
+	size_t migration_completed;
+
+	/* Compute memory_size and pages*/
+	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
+	if (highmem_size > 0) {
+		fprintf(stderr, "%s: Live migration not implemented for highmem"
+			" segment\r\n", __func__);
+		error = -1;
+		goto done;
+	}
+
+	memory_size = lowmem_size + highmem_size;
+	vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
+
+	/* alloc page_list_indexes */
+	page_list_indexes = malloc (lowmem_pages * sizeof(char));
+	if (page_list_indexes == NULL) {
+		perror("Page list indexes could not be allocated");
+		error = -1;
+		goto done;
+	}
+
+	error = vm_init_vmm_migration_pages_req(&memory_req);
+	if (error < 0) {
+		fprintf(stderr, "%s: Could not initialize "
+			"struct vmm_migration_pages_req\r\n", __func__);
+		return (error);
+	}
+
+	/* Freeze VM */
+	vm_vcpu_lock_all(ctx);
+
+	/* Clear the VPO_VMM_DIRTY bit for each of the guest's vm_pages */
+	clear_vmm_dirty_bits(ctx);
+
+	/* Un-freeze VM */
+	vm_vcpu_unlock_all(ctx);
+
+	/* page_list_indexes = all of the guest's vm_pages */
+	fill_page_list(page_list_indexes, lowmem_pages, 1);
+
+	error = send_pages(ctx, socket, &memory_req, page_list_indexes,
+			   lowmem_pages);
+	if (error != 0) {
+		fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
+			__func__);
+		goto done;
+	}
+
+	for (index = 0; index < MIGRATION_ROUNDS - 1; index ++) {
+		/* TODO: memset 0 on page_list_indexes */
+		fill_page_list(page_list_indexes, lowmem_pages, 0);
+
+		/* Freeze VM */
+		vm_vcpu_lock_all(ctx);
+
+		/* Search the dirty pages and populate page_list_index */
+		error = search_dirty_pages(ctx, page_list_indexes);
+		if (error != 0) {
+			fprintf(stderr,
+				"%s: Couldn't search for the dirty pages\r\n",
+				__func__);
+			goto done;
+		}
+
+		/* Clear the VPO_VMM_DIRTY bit for each of the guest's vm_pages */
+		clear_vmm_dirty_bits(ctx);
+		/* Un-freeze VM */
+		vm_vcpu_unlock_all(ctx);
+
+		error = send_pages(ctx, socket, &memory_req, page_list_indexes,
+				   lowmem_pages);
+		if (error != 0) {
+			fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
+				__func__);
+			goto done;
+		}
+	}
+
+	// Last memory migration round
+	/* Freeze VM */
+	error = vm_vcpu_lock_all(ctx);
+	if (error != 0) {
+		fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
+		goto done;
+	}
+
+	/* TODO: memset 0 on page_list_indexes */
+	fill_page_list(page_list_indexes, lowmem_pages, 0);
+
+
+	/* Search the dirty pages and populate page_list_index */
+	error = search_dirty_pages(ctx, page_list_indexes);
+	if (error != 0) {
+		fprintf(stderr,
+			"%s: Couldn't search for the dirty pages\r\n",
+			__func__);
+		goto unlock_vm_and_exit;
+	}
+
+	error = send_pages(ctx, socket, &memory_req, page_list_indexes,
+			   lowmem_pages);
+	if (error != 0) {
+		fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
+			__func__);
+		goto unlock_vm_and_exit;
+	}
+
+	// Send kern data
+	error =  migrate_kern_data(ctx, socket, MIGRATION_SEND_REQ);
+	if (error != 0) {
+		fprintf(stderr,
+			"%s: Could not send kern data to destination\r\n",
+			__func__);
+		goto unlock_vm_and_exit;
+	}
+
+	// Send PCI data
+	error =  migrate_devs(ctx, socket, MIGRATION_SEND_REQ);
+	if (error != 0) {
+		fprintf(stderr,
+			"%s: Could not send pci devs to destination\r\n",
+			__func__);
+		goto unlock_vm_and_exit;
+	}
+
+	// Wait for migration completed
+	error = migration_recv_data_from_remote(socket, &migration_completed,
+					sizeof(migration_completed));
+	if ((error < 0) || (migration_completed != MIGRATION_SPECS_OK)) {
+		fprintf(stderr,
+			"%s: Could not recv migration completed remote"
+			" or received error\r\n",
+			__func__);
+		goto unlock_vm_and_exit;
+	}
+
+	// Poweroff the vm
+	vm_vcpu_unlock_all(ctx);
+
+
+	error = vm_suspend(ctx, VM_SUSPEND_POWEROFF);
+	if (error != 0) {
+		fprintf(stderr, "Failed to suspend vm\n");
+	}
+
+	/* Wait for CPUs to suspend. TODO: write this properly. */
+	sleep(5);
+	vm_destroy(ctx);
+	/* XXX */
+	exit(0);
+
+unlock_vm_and_exit:
+	vm_vcpu_unlock_all(ctx);
+done:
+	if (page_list_indexes != NULL)
+		free(page_list_indexes);
+	return (error);
+}
+
+static int
+live_migrate_recv(struct vmctx *ctx, int socket)
+{
+	int error = 0;
+	size_t memory_size = 0, lowmem_size = 0, highmem_size = 0;
+	size_t lowmem_pages, highmem_pages;
+	char *baseaddr;
+
+	struct vmm_migration_pages_req memory_req;
+	char *page_list_indexes = NULL;
+	int index;
+
+	/* Compute memory_size and pages*/
+	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
+	if (highmem_size > 0) {
+		fprintf(stderr, "%s: Live migration not implemented for highmem"
+			" segment\r\n", __func__);
+		error = -1;
+		goto done;
+	}
+
+	memory_size = lowmem_size + highmem_size;
+	vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
+
+	/* alloc page_list_indexes */
+	page_list_indexes = malloc (lowmem_pages * sizeof(char));
+	if (page_list_indexes == NULL) {
+		perror("Page list indexes could not be allocated");
+		error = -1;
+		goto done;
+	}
+
+	error = vm_init_vmm_migration_pages_req(&memory_req);
+	if (error < 0) {
+		fprintf(stderr, "%s: Could not initialize "
+			"struct vmm_migration_pages_req\r\n", __func__);
+		return (error);
+	}
+
+	/* The following iteration contains the preliminary round in which the
+	 * entire memory is migrated to the destination. Then, for
+	 * MIGRATION_ROUNDS - 1 rounds, only the dirtied pages will be migrated.
+	 * In the final round, the rest of the pages are migrated.
+	 * Since the vcpus are not started, we don't need to lock them, so we
+	 * can do the memory migration pretty straight-forward.
+	 */
+	for (index = 0; index < MIGRATION_ROUNDS + 1; index ++) {
+		fill_page_list(page_list_indexes, lowmem_pages, 0);
+
+		error = recv_pages(ctx, socket, &memory_req,
+				   page_list_indexes, lowmem_pages);
+		if (error != 0) {
+			fprintf(stderr, "%s: Couldn't recv dirty pages from source\r\n",
+				__func__);
+			goto done;
+		}
+	}
+
+	
+
+	error = 0;
+done:
+	if (page_list_indexes != NULL) {
+		free(page_list_indexes);
+	}
+	return (error);
+}
+
 int
 vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 {
