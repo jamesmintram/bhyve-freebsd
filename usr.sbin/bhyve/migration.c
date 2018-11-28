@@ -2589,7 +2589,7 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 	int addr_type;
 	struct sockaddr_in sa;
 	int s;
-	int rc, error;
+	int rc, error, migration_type;
 	size_t migration_completed;
 
 	rc = get_migration_host_and_type(req.host, ipv4_addr,
@@ -2663,6 +2663,27 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 		goto done;
 	}
 
+	migration_type = live;
+	rc = migration_send_data_remote(s, &migration_type,
+					sizeof(migration_type));
+	if (rc < 0) {
+		fprintf(stderr, "%s: Could not send migration type\r\n", __func__);
+		return (-1);
+	}
+
+	if (live) {
+		rc = live_migrate_send(ctx, s);
+		if (rc != 0) {
+			fprintf(stderr,
+				"%s: Could not live migrate the guest's memory\r\n",
+				__func__);
+			error = rc;
+		} else {
+			error = 0;
+		}
+		goto done;
+	} // else continue the warm migration procedure
+
 	rc = vm_vcpu_lock_all(ctx);
 	if (rc != 0) {
 		fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
@@ -2670,6 +2691,7 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 		goto done;
 	}
 
+	/* Warm Migration */
 	rc = migrate_send_memory(ctx, s);
 	if (rc != 0) {
 		fprintf(stderr,
@@ -2745,6 +2767,7 @@ vm_recv_migrate_req(struct vmctx *ctx, struct migrate_req req)
 	struct sockaddr_in sa, client_sa;
 	socklen_t client_len;
 	int rc;
+	int migration_type;
 	size_t migration_completed;
 
 	rc = get_migration_host_and_type(req.host, ipv4_addr,
@@ -2816,14 +2839,39 @@ vm_recv_migrate_req(struct vmctx *ctx, struct migrate_req req)
 		return (rc);
 	}
 
-	rc = migrate_recv_memory(ctx, con_socket);
+
+	rc = migration_recv_data_from_remote(con_socket, &migration_type,
+					sizeof(migration_type));
 	if (rc < 0) {
-		fprintf(stderr,
-			"%s: Could not recv lowmem and highmem\r\n",
+		fprintf(stderr, "%s: Could not recv migration type\r\n",
 			__func__);
-		close(con_socket);
-		close(s);
 		return (-1);
+	}
+
+	/* For recv, the only differences between warm and live migration is the
+	 * way in which the memory is migrated.
+	 */
+	if (migration_type) {
+		rc = live_migrate_recv(ctx, con_socket);
+		if (rc != 0) {
+			fprintf(stderr,
+				"%s: Could not live migrate the guest's memory\r\n",
+				__func__);
+			close(con_socket);
+			close(s);
+			return (rc);
+		}
+	}  else {
+		/* if not live migration, then migrate memory normally. */
+		rc = migrate_recv_memory(ctx, con_socket);
+		if (rc < 0) {
+			fprintf(stderr,
+				"%s: Could not recv lowmem and highmem\r\n",
+				__func__);
+			close(con_socket);
+			close(s);
+			return (-1);
+		}
 	}
 
 	rc = migrate_kern_data(ctx, con_socket, MIGRATION_RECV_REQ);
