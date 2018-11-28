@@ -34,6 +34,11 @@
 
 #define VMM_PAGE_CHUNK	10
 
+enum migration_req_type {
+	VMM_GET_PAGES	= 0,
+	VMM_SET_PAGES	= 1,
+};
+
 struct vmm_migration_page {
 	vm_pindex_t	pindex;
 	uint8_t		*page;
@@ -41,6 +46,7 @@ struct vmm_migration_page {
 
 struct vmm_migration_pages_req {
 	size_t				pages_required;
+	enum migration_req_type		req_type;
 	struct vmm_migration_page	pages[VMM_PAGE_CHUNK];
 };
 
