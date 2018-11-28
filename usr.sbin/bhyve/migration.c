@@ -2167,6 +2167,133 @@ migration_fill_vmm_migration_pages_req(struct vmctx *ctx,
 }
 
 static int
+send_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
+	   char *page_list, size_t page_list_size)
+{
+	size_t dirty_pages;
+	size_t current_pos, i;
+	int rc;
+
+	dirty_pages = num_dirty_pages(page_list, page_list_size);
+
+	// send page_list;
+	rc = migration_send_data_remote(socket, page_list, page_list_size);
+	if (rc < 0) {
+		fprintf(stderr, "%s: Could not send page_list remote\r\n",
+			__func__);
+		return (-1);
+	}
+
+	current_pos = 0;
+	while (1) {
+		if (current_pos >= page_list_size)
+			break;
+
+		for (i = 0; i < VMM_PAGE_CHUNK; i++)
+			req->pages[i].pindex = -1;
+
+
+		req->pages_required = 0;
+
+		rc = migration_fill_vmm_migration_pages_req(ctx, req, page_list,
+							    page_list_size,
+							    &current_pos);
+
+		if (rc < 0) {
+			fprintf(stderr, "%s: Could not get pages\r\n",
+				__func__);
+			return (-1);
+		}
+
+		for (i = 0; i < req->pages_required; i++) {
+			rc = migration_send_data_remote(socket,
+							req->pages[i].page,
+							PAGE_SIZE);
+
+			if (rc < 0) {
+				fprintf(stderr, "%s: Cound not send page %zu "
+					"remote\r\n", __func__,
+					req->pages[i].pindex);
+				return (-1);
+			}
+		}
+	}
+
+	return (0);
+}
+
+static int
+recv_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
+	   char *page_list, size_t page_list_size)
+{
+	size_t dirty_pages;
+	size_t i, count, current_pos;
+	int rc;
+
+	rc = migration_recv_data_from_remote(socket, page_list, page_list_size);
+	if (rc < 0) {
+		fprintf(stderr, "%s: Could not receive page_list from "
+			"remote\r\n", __func__);
+		return (-1);
+	}
+
+	dirty_pages  = num_dirty_pages(page_list, page_list_size);
+
+	current_pos = 0;
+	while (1) {
+		if (current_pos >= page_list_size)
+			break;
+
+		for (i = 0; i < VMM_PAGE_CHUNK; i++)
+			req->pages[i].pindex = -1;
+
+		req->pages_required = 0;
+
+
+		count = 0;
+		for (i = current_pos; i < page_list_size; i++) {
+			if (count == VMM_PAGE_CHUNK)
+				break;
+
+			if (page_list[i] == 1) {
+				req->pages[count].pindex = i;
+				count ++;
+			}
+		}
+
+		current_pos = i;
+
+		req->pages_required = count;
+
+		for (i = 0; i < req->pages_required; i++) {
+			rc = migration_recv_data_from_remote(socket,
+							     req->pages[i].page,
+							     PAGE_SIZE);
+
+			if (rc < 0) {
+				fprintf(stderr, "%s: Could not recv pade %zu "
+					"from remote\r\n", __func__,
+					req->pages[i].pindex);
+				return (-1);
+			}
+		}
+		// update pages
+
+
+		req->req_type = VMM_SET_PAGES;
+		rc =  vm_copy_vmm_pages(ctx, req);
+
+		if (rc < 0) {
+			fprintf(stderr, "%s: Could not copy pages into "
+				"guest memory\r\n", __func__);
+			return (-1);
+		}
+	}
+
+	return (0);
+}
+
+static int
 search_dirty_pages(struct vmctx *ctx, char *page_list)
 {
 	size_t lowmem_pages, highmem_pages;
