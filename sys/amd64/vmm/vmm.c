@@ -3366,12 +3366,18 @@ vm_migration_copy_pages(vm_object_t object,
 	struct vmm_migration_page migration_page;
 	size_t page_idx;
 	void *dst;
+	enum migration_req_type req_type = page_req->req_type;
 
 	for (page_idx = 0; page_idx < page_req->pages_required; page_idx ++) {
 		migration_page = page_req->pages[page_idx];
 		pindex = migration_page.pindex;
 		dst = (void *) migration_page.page;
-		vm_object_copy_page(object, pindex, dst);
+		if (req_type == VMM_GET_PAGES)
+			vm_object_get_page(object, pindex, dst);
+		else if (req_type == VMM_SET_PAGES)
+			vm_object_set_page(object, pindex, dst);
+		else
+			return;
 	}
 }
 

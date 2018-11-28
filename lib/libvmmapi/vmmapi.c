@@ -1805,6 +1805,9 @@ vm_get_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
 				__func__);
 			return (-1);
 		}
+
+		if (pages_req->req_type == VMM_GET_PAGES)
+			memset(pages_req->pages[index].page, 0, PAGE_SIZE);
 	}
 
 	error = ioctl(ctx->fd, VM_GET_VMM_PAGES, pages_req);
