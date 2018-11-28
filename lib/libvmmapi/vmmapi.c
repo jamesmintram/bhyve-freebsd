@@ -1783,7 +1783,7 @@ vm_restore_time(struct vmctx *ctx)
 }
 
 int
-vm_get_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
+vm_copy_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
 {
 	int error;
 	size_t index;
@@ -1810,7 +1810,7 @@ vm_get_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
 			memset(pages_req->pages[index].page, 0, PAGE_SIZE);
 	}
 
-	error = ioctl(ctx->fd, VM_GET_VMM_PAGES, pages_req);
+	error = ioctl(ctx->fd, VM_COPY_VMM_PAGES, pages_req);
 
 	return (error);
 }

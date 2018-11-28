@@ -3359,7 +3359,7 @@ vm_clear_vmm_dirty_bits(struct vm *vm)
 }
 
 static inline void
-vm_migration_copy_pages(vm_object_t object,
+vm_copy_object_pages(vm_object_t object,
 			struct vmm_migration_pages_req *page_req)
 {
 	vm_pindex_t pindex;
@@ -3382,7 +3382,7 @@ vm_migration_copy_pages(vm_object_t object,
 }
 
 int
-vm_get_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
+vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 {
 	int error = 0;
 	struct vmspace *vm_vmspace;
@@ -3411,7 +3411,7 @@ vm_get_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 			continue;
 
 		VM_OBJECT_WLOCK(object);
-		vm_migration_copy_pages(object, pages_req);
+		vm_copy_object_pages(object, pages_req);
 		VM_OBJECT_WUNLOCK(object);
 		break;
 	}

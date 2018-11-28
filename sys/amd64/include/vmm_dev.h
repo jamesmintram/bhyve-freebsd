@@ -378,7 +378,7 @@ enum {
 	IOCNUM_RESTORE_TIME = 115,
 	IOCNUM_VM_CLEAR_VMM_DIRTY_BITS = 116,
 	IOCNUM_VM_GET_DIRTY_PAGE_LIST = 117,
-	IOCNUM_VM_GET_VMM_PAGES = 118,
+	IOCNUM_VM_COPY_VMM_PAGES = 118,
 };
 
 #define	VM_RUN		\
@@ -505,6 +505,6 @@ enum {
 	_IO('v', IOCNUM_VM_CLEAR_VMM_DIRTY_BITS)
 #define VM_GET_DIRTY_PAGE_LIST \
 	_IOWR('v', IOCNUM_VM_GET_DIRTY_PAGE_LIST, struct vm_get_dirty_page_list)
-#define VM_GET_VMM_PAGES \
-	_IOWR('v', IOCNUM_VM_GET_VMM_PAGES, struct vmm_migration_pages_req)
+#define VM_COPY_VMM_PAGES \
+	_IOWR('v', IOCNUM_VM_COPY_VMM_PAGES, struct vmm_migration_pages_req)
 #endif
