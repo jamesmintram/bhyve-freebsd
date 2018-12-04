@@ -62,6 +62,10 @@ __FBSDID("$FreeBSD$");
 #include <machine/machdep.h> /* For arm_set_delay */
 #endif
 
+#if defined(__aarch64__)
+#include <machine/vmm.h>	/* For virt_enabled() */
+#endif
+
 #ifdef FDT
 #include <dev/ofw/openfirm.h>
 #include <dev/ofw/ofw_bus.h>
@@ -440,6 +444,8 @@ arm_tmr_attach(device_t dev)
 	sc->physical = (sc->res[GT_VIRT] == NULL);
 #ifdef __arm__
 	sc->physical |= (hypmode_enabled[0] == 0);
+#elif defined(__aarch64__)
+	sc->physical |= virt_enabled();
 #endif
 	arm_tmr_sc = sc;
 
