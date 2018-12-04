@@ -74,6 +74,8 @@ __FBSDID("$FreeBSD$");
 #include <dev/acpica/acpivar.h>
 #endif
 
+#include "generic_timer.h"
+
 #define	GT_CTRL_ENABLE		(1 << 0)
 #define	GT_CTRL_INT_MASK	(1 << 1)
 #define	GT_CTRL_INT_STAT	(1 << 2)
@@ -505,6 +507,9 @@ static driver_t arm_tmr_fdt_driver = {
 
 static devclass_t arm_tmr_fdt_devclass;
 
+DEFINE_CLASS_0(generic_timer, generic_timer_driver, arm_tmr_fdt_methods,
+    sizeof(struct arm_tmr_softc));
+
 EARLY_DRIVER_MODULE(timer, simplebus, arm_tmr_fdt_driver, arm_tmr_fdt_devclass,
     0, 0, BUS_PASS_TIMER + BUS_PASS_ORDER_MIDDLE);
 EARLY_DRIVER_MODULE(timer, ofwbus, arm_tmr_fdt_driver, arm_tmr_fdt_devclass,
@@ -526,6 +531,11 @@ static driver_t arm_tmr_acpi_driver = {
 };
 
 static devclass_t arm_tmr_acpi_devclass;
+
+#ifndef FDT
+DEFINE_CLASS_0(generic_timer, generic_timer_driver, arm_tmr_acpi_methods,
+    sizeof(struct arm_tmr_softc));
+#endif
 
 EARLY_DRIVER_MODULE(timer, acpi, arm_tmr_acpi_driver, arm_tmr_acpi_devclass,
     0, 0, BUS_PASS_TIMER + BUS_PASS_ORDER_MIDDLE);
