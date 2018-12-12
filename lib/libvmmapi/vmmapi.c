@@ -53,6 +53,10 @@ __FBSDID("$FreeBSD$");
 
 #include "vmmapi.h"
 
+#if defined(__amd64__)
+#include "amd64/vmctx_amd64.h"
+#endif
+
 #define	MB	(1024 * 1024UL)
 
 #define	CREATE(x)  sysctlbyname("hw.vmm.create", NULL, NULL, (x), strlen((x)))
@@ -68,14 +72,11 @@ vm_create(const char *name)
 void
 vm_destroy(struct vmctx *vm)
 {
-	int fd;
-
 	assert(vm != NULL);
 
-	fd = vm_get_device_fd(vm);
-	if (fd >= 0)
-		close(fd);
-	DESTROY(vm_get_name(vm));
+	if (vm->fd >= 0)
+		close(vm->fd);
+	DESTROY(vm->name);
 
 	free(vm);
 }
@@ -115,7 +116,7 @@ vm_set_register(struct vmctx *ctx, int vcpu, int reg, uint64_t val)
 	vmreg.regnum = reg;
 	vmreg.regval = val;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_SET_REGISTER, &vmreg);
+	error = ioctl(ctx->fd, VM_SET_REGISTER, &vmreg);
 	return (error);
 }
 
@@ -129,7 +130,7 @@ vm_get_register(struct vmctx *ctx, int vcpu, int reg, uint64_t *ret_val)
 	vmreg.cpuid = vcpu;
 	vmreg.regnum = reg;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_REGISTER, &vmreg);
+	error = ioctl(ctx->fd, VM_GET_REGISTER, &vmreg);
 	*ret_val = vmreg.regval;
 	return (error);
 }
@@ -147,7 +148,7 @@ vm_set_register_set(struct vmctx *ctx, int vcpu, unsigned int count,
 	vmregset.regnums = regnums;
 	vmregset.regvals = regvals;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_SET_REGISTER_SET, &vmregset);
+	error = ioctl(ctx->fd, VM_SET_REGISTER_SET, &vmregset);
 	return (error);
 }
 
@@ -164,7 +165,7 @@ vm_get_register_set(struct vmctx *ctx, int vcpu, unsigned int count,
 	vmregset.regnums = regnums;
 	vmregset.regvals = regvals;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_REGISTER_SET, &vmregset);
+	error = ioctl(ctx->fd, VM_GET_REGISTER_SET, &vmregset);
 	return (error);
 }
 
@@ -177,7 +178,7 @@ vm_run(struct vmctx *ctx, int vcpu, struct vm_exit *vmexit)
 	bzero(&vmrun, sizeof(vmrun));
 	vmrun.cpuid = vcpu;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_RUN, &vmrun);
+	error = ioctl(ctx->fd, VM_RUN, &vmrun);
 	bcopy(&vmrun.vm_exit, vmexit, sizeof(struct vm_exit));
 	return (error);
 }
@@ -189,14 +190,14 @@ vm_suspend(struct vmctx *ctx, enum vm_suspend_how how)
 
 	bzero(&vmsuspend, sizeof(vmsuspend));
 	vmsuspend.how = how;
-	return (ioctl(vm_get_device_fd(ctx), VM_SUSPEND, &vmsuspend));
+	return (ioctl(ctx->fd, VM_SUSPEND, &vmsuspend));
 }
 
 int
 vm_reinit(struct vmctx *ctx)
 {
 
-	return (ioctl(vm_get_device_fd(ctx), VM_REINIT, 0));
+	return (ioctl(ctx->fd, VM_REINIT, 0));
 }
 
 int
@@ -210,7 +211,7 @@ vm_get_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap,
 	vmcap.cpuid = vcpu;
 	vmcap.captype = cap;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_CAPABILITY, &vmcap);
+	error = ioctl(ctx->fd, VM_GET_CAPABILITY, &vmcap);
 	*retval = vmcap.capval;
 	return (error);
 }
@@ -225,7 +226,7 @@ vm_set_capability(struct vmctx *ctx, int vcpu, enum vm_cap_type cap, int val)
 	vmcap.captype = cap;
 	vmcap.capval = val;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_SET_CAPABILITY, &vmcap));
+	return (ioctl(ctx->fd, VM_SET_CAPABILITY, &vmcap));
 }
 
 int
@@ -238,7 +239,7 @@ vm_assign_pptdev(struct vmctx *ctx, int bus, int slot, int func)
 	pptdev.slot = slot;
 	pptdev.func = func;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_BIND_PPTDEV, &pptdev));
+	return (ioctl(ctx->fd, VM_BIND_PPTDEV, &pptdev));
 }
 
 int
@@ -251,7 +252,7 @@ vm_unassign_pptdev(struct vmctx *ctx, int bus, int slot, int func)
 	pptdev.slot = slot;
 	pptdev.func = func;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_UNBIND_PPTDEV, &pptdev));
+	return (ioctl(ctx->fd, VM_UNBIND_PPTDEV, &pptdev));
 }
 
 int
@@ -268,7 +269,7 @@ vm_map_pptdev_mmio(struct vmctx *ctx, int bus, int slot, int func,
 	pptmmio.len = len;
 	pptmmio.hpa = hpa;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_MAP_PPTDEV_MMIO, &pptmmio));
+	return (ioctl(ctx->fd, VM_MAP_PPTDEV_MMIO, &pptmmio));
 }
 
 int
@@ -286,7 +287,7 @@ vm_setup_pptdev_msi(struct vmctx *ctx, int vcpu, int bus, int slot, int func,
 	pptmsi.addr = addr;
 	pptmsi.numvec = numvec;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_PPTDEV_MSI, &pptmsi));
+	return (ioctl(ctx->fd, VM_PPTDEV_MSI, &pptmsi));
 }
 
 int	
@@ -305,7 +306,7 @@ vm_setup_pptdev_msix(struct vmctx *ctx, int vcpu, int bus, int slot, int func,
 	pptmsix.addr = addr;
 	pptmsix.vector_control = vector_control;
 
-	return ioctl(vm_get_device_fd(ctx), VM_PPTDEV_MSIX, &pptmsix);
+	return ioctl(ctx->fd, VM_PPTDEV_MSIX, &pptmsix);
 }
 
 uint64_t *
@@ -318,7 +319,7 @@ vm_get_stats(struct vmctx *ctx, int vcpu, struct timeval *ret_tv,
 
 	vmstats.cpuid = vcpu;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_STATS, &vmstats);
+	error = ioctl(ctx->fd, VM_STATS, &vmstats);
 	if (error == 0) {
 		if (ret_entries)
 			*ret_entries = vmstats.num_entries;
@@ -335,7 +336,7 @@ vm_get_stat_desc(struct vmctx *ctx, int index)
 	static struct vm_stat_desc statdesc;
 
 	statdesc.index = index;
-	if (ioctl(vm_get_device_fd(ctx), VM_STAT_DESC, &statdesc) == 0)
+	if (ioctl(ctx->fd, VM_STAT_DESC, &statdesc) == 0)
 		return (statdesc.desc);
 	else
 		return (NULL);
@@ -350,7 +351,7 @@ vm_get_gpa_pmap(struct vmctx *ctx, uint64_t gpa, uint64_t *pte, int *num)
 	bzero(&gpapte, sizeof(gpapte));
 	gpapte.gpa = gpa;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_GPA_PMAP, &gpapte);
+	error = ioctl(ctx->fd, VM_GET_GPA_PMAP, &gpapte);
 
 	if (error == 0) {
 		*num = gpapte.ptenum;
@@ -374,7 +375,7 @@ vm_gla2gpa(struct vmctx *ctx, int vcpu, struct vm_guest_paging *paging,
 	gg.gla = gla;
 	gg.paging = *paging;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GLA2GPA, &gg);
+	error = ioctl(ctx->fd, VM_GLA2GPA, &gg);
 	if (error == 0) {
 		*fault = gg.fault;
 		*gpa = gg.gpa;
@@ -395,7 +396,7 @@ vm_gla2gpa_nofault(struct vmctx *ctx, int vcpu, struct vm_guest_paging *paging,
 	gg.gla = gla;
 	gg.paging = *paging;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GLA2GPA_NOFAULT, &gg);
+	error = ioctl(ctx->fd, VM_GLA2GPA_NOFAULT, &gg);
 	if (error == 0) {
 		*fault = gg.fault;
 		*gpa = gg.gpa;
@@ -504,7 +505,7 @@ vm_get_cpus(struct vmctx *ctx, int which, cpuset_t *cpus)
 	vm_cpuset.cpusetsize = sizeof(cpuset_t);
 	vm_cpuset.cpus = cpus;
 
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_CPUS, &vm_cpuset);
+	error = ioctl(ctx->fd, VM_GET_CPUS, &vm_cpuset);
 	return (error);
 }
 
@@ -537,7 +538,7 @@ vm_activate_cpu(struct vmctx *ctx, int vcpu)
 
 	bzero(&ac, sizeof(struct vm_activate_cpu));
 	ac.vcpuid = vcpu;
-	error = ioctl(vm_get_device_fd(ctx), VM_ACTIVATE_CPU, &ac);
+	error = ioctl(ctx->fd, VM_ACTIVATE_CPU, &ac);
 	return (error);
 }
 
@@ -549,7 +550,7 @@ vm_suspend_cpu(struct vmctx *ctx, int vcpu)
 
 	bzero(&ac, sizeof(struct vm_activate_cpu));
 	ac.vcpuid = vcpu;
-	error = ioctl(vm_get_device_fd(ctx), VM_SUSPEND_CPU, &ac);
+	error = ioctl(ctx->fd, VM_SUSPEND_CPU, &ac);
 	return (error);
 }
 
@@ -561,7 +562,7 @@ vm_resume_cpu(struct vmctx *ctx, int vcpu)
 
 	bzero(&ac, sizeof(struct vm_activate_cpu));
 	ac.vcpuid = vcpu;
-	error = ioctl(vm_get_device_fd(ctx), VM_RESUME_CPU, &ac);
+	error = ioctl(ctx->fd, VM_RESUME_CPU, &ac);
 	return (error);
 }
 
@@ -570,7 +571,7 @@ vm_restart_instruction(void *arg, int vcpu)
 {
 	struct vmctx *ctx = arg;
 
-	return (ioctl(vm_get_device_fd(ctx), VM_RESTART_INSTRUCTION, &vcpu));
+	return (ioctl(ctx->fd, VM_RESTART_INSTRUCTION, &vcpu));
 }
 
 int
@@ -584,7 +585,7 @@ vm_set_topology(struct vmctx *ctx,
 	topology.cores = cores;
 	topology.threads = threads;
 	topology.maxcpus = maxcpus;
-	return (ioctl(vm_get_device_fd(ctx), VM_SET_TOPOLOGY, &topology));
+	return (ioctl(ctx->fd, VM_SET_TOPOLOGY, &topology));
 }
 
 int
@@ -595,7 +596,7 @@ vm_get_topology(struct vmctx *ctx,
 	int error;
 
 	bzero(&topology, sizeof (struct vm_cpu_topology));
-	error = ioctl(vm_get_device_fd(ctx), VM_GET_TOPOLOGY, &topology);
+	error = ioctl(ctx->fd, VM_GET_TOPOLOGY, &topology);
 	if (error == 0) {
 		*sockets = topology.sockets;
 		*cores = topology.cores;

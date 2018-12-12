@@ -54,8 +54,10 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmm.h>
 #include <machine/vmm_dev.h>
 
-#include "vmmapi.h"
+#include <vmmapi.h>
+
 #include "vmmapi_internal.h"
+#include "vmctx_amd64.h"
 
 #define	MB	(1024 * 1024UL)
 #define	GB	(1024 * 1024 * 1024UL)
@@ -69,16 +71,6 @@ __FBSDID("$FreeBSD$");
 
 #define	PROT_RW		(PROT_READ | PROT_WRITE)
 #define	PROT_ALL	(PROT_READ | PROT_WRITE | PROT_EXEC)
-
-struct vmctx {
-	int	fd;
-	uint32_t lowmem_limit;
-	int	memflags;
-	size_t	lowmem;
-	size_t	highmem;
-	char	*baseaddr;
-	char	*name;
-};
 
 struct vmctx *
 vm_open(const char *name)

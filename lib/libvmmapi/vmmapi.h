@@ -144,6 +144,4 @@ int	vm_set_topology(struct vmctx *ctx, uint16_t sockets, uint16_t cores,
 	    uint16_t threads, uint16_t maxcpus);
 int	vm_get_topology(struct vmctx *ctx, uint16_t *sockets, uint16_t *cores,
 	    uint16_t *threads, uint16_t *maxcpus);
-
-const char *vm_get_name(struct vmctx *ctx);
 #endif	/* _VMMAPI_H_ */
