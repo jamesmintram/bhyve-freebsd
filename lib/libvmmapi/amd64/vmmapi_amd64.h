@@ -28,10 +28,8 @@
  * $FreeBSD$
  */
 
-/*
- * Note the missing header guards. This is because this file isn't intended to
- * be included as a standalone header. Use '#include <vmmapi.h>' instead.
- */
+#ifndef	_VMMAPI_AMD64_H_
+#define	_VMMAPI_AMD64_H_
 
 enum x2apic_state;
 
@@ -132,3 +130,4 @@ int	vm_setup_freebsd_registers_i386(struct vmctx *vmctx, int vcpu,
 					uint32_t eip, uint32_t gdtbase,
 					uint32_t esp);
 void	vm_setup_freebsd_gdt(uint64_t *gdtr);
+#endif	/* _VMMAPI_AMD64_H_ */
