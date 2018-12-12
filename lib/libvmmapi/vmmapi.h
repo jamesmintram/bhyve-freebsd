@@ -34,6 +34,12 @@
 #include <sys/param.h>
 #include <sys/cpuset.h>
 
+struct vmctx;
+
+#if defined(__amd64__)
+#include <amd64/vmmapi_amd64.h>
+#endif
+
 /*
  * API version for out-of-tree consumers like grub-bhyve for making compile
  * time decisions.
@@ -41,7 +47,6 @@
 #define	VMMAPI_VERSION	0103	/* 2 digit major followed by 2 digit minor */
 
 struct iovec;
-struct vmctx;
 
 /*
  * Different styles of mapping the memory assigned to a VM into the address
@@ -141,8 +146,4 @@ int	vm_get_topology(struct vmctx *ctx, uint16_t *sockets, uint16_t *cores,
 	    uint16_t *threads, uint16_t *maxcpus);
 
 const char *vm_get_name(struct vmctx *ctx);
-
-#if defined(__amd64__)
-#include <amd64/vmmapi_amd64.h>
-#endif
 #endif	/* _VMMAPI_H_ */
