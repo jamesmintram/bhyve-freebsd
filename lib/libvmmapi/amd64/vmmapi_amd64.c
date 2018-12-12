@@ -55,6 +55,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmm_dev.h>
 
 #include "vmmapi.h"
+#include "vmmapi_internal.h"
 
 #define	MB	(1024 * 1024UL)
 #define	GB	(1024 * 1024 * 1024UL)
@@ -78,24 +79,6 @@ struct vmctx {
 	char	*baseaddr;
 	char	*name;
 };
-
-static int
-vm_device_open(const char *name)
-{
-	int fd, len;
-	char *vmfile;
-
-	len = strlen("/dev/vmm/") + strlen(name) + 1;
-	vmfile = malloc(len);
-	assert(vmfile != NULL);
-	snprintf(vmfile, len, "/dev/vmm/%s", name);
-
-	/* Open the device file */
-	fd = open(vmfile, O_RDWR, 0);
-
-	free(vmfile);
-	return (fd);
-}
 
 struct vmctx *
 vm_open(const char *name)

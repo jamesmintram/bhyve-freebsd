@@ -2,8 +2,8 @@
 
 PACKAGE=lib${LIB}
 LIB=	vmmapi
-SRCS=	vmmapi.c
-INCS=	vmmapi.h
+SRCS=	vmmapi.c vmmapi_internal.c
+INCS=	vmmapi.h vmmapi_internal.h
 
 WARNS?=	2
 
