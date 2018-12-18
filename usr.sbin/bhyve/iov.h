@@ -27,7 +27,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: head/usr.sbin/bhyve/iov.h 334940 2018-06-11 02:09:20Z araujo $
  */
 
 #ifndef _IOV_H_

@@ -1,8 +1,6 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
- *
- * Copyright (c) 2014 Hudson River Trading LLC
- * Written by: John H. Baldwin <jhb@FreeBSD.org>
+ * Copyright (c) 2014 Marcel Moolenaar
+ * Copyright (c) 2018 Marcelo Araujo <araujo@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,22 +24,29 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: head/usr.sbin/bhyve/pci_irq.h 335025 2018-06-13 03:22:08Z araujo $
+ * $FreeBSD: user/marcel/libvdsk/libvdsk/vdsk.h 286996 2015-08-21 15:20:01Z marcel $
  */
 
-#ifndef __PCI_IRQ_H__
-#define	__PCI_IRQ_H__
+#ifndef __VDSK_H__
+#define	__VDSK_H__
 
-struct pci_devinst;
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 
-void	pci_irq_assert(struct pci_devinst *pi);
-void	pci_irq_deassert(struct pci_devinst *pi);
-void	pci_irq_init(struct vmctx *ctx);
-void	pci_irq_reserve(int irq);
-void	pci_irq_use(int irq);
-int	pirq_alloc_pin(struct pci_devinst *pi);
-int	pirq_irq(int pin);
-uint8_t	pirq_read(int pin);
-void	pirq_write(struct vmctx *ctx, int pin, uint8_t val);
+#include "block_if.h"
 
-#endif
+typedef void *vdskctx;
+
+vdskctx	vdsk_open(const char *, int, size_t);
+int	vdsk_close(vdskctx);
+
+off_t	vdsk_capacity(vdskctx);
+int	vdsk_sectorsize(vdskctx);
+
+int	vdsk_read(vdskctx, struct blockif_req *, uint8_t *);
+int	vdsk_write(vdskctx, struct blockif_req *, uint8_t *);
+int	vdsk_trim(vdskctx, unsigned long, off_t arg[2]);
+int	vdsk_flush(vdskctx, unsigned long);
+
+#endif /* __VDSK_H__ */
