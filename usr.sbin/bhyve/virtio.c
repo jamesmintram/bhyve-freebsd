@@ -808,6 +808,38 @@ done:
 }
 
 int
+vi_pci_pause(struct pci_devinst *pi)
+{
+	struct virtio_softc *vs;
+	struct virtio_consts *vc;
+
+	vs = pi->pi_arg;
+	vc = vs->vs_vc;
+
+	vc = vs->vs_vc;
+	assert(vc->vc_pause != NULL);
+	(*vc->vc_pause)(DEV_SOFTC(vs));
+
+	return (0);
+}
+
+int
+vi_pci_resume(struct pci_devinst *pi)
+{
+	struct virtio_softc *vs;
+	struct virtio_consts *vc;
+
+	vs = pi->pi_arg;
+	vc = vs->vs_vc;
+
+	vc = vs->vs_vc;
+	assert(vc->vc_resume != NULL);
+	(*vc->vc_resume)(DEV_SOFTC(vs));
+
+	return (0);
+}
+
+int
 vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 		size_t buf_size, size_t *snapshot_size)
 {
@@ -822,13 +854,12 @@ vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 
 	vc = vs->vs_vc;
 	assert(vc->vc_pause != NULL);
-	(*vc->vc_pause)(DEV_SOFTC(vs));
 
 	/* Save virtio softc */
 	if (sizeof(*vs) > buf_size - snap_size) {
 		fprintf(stderr, "%s: buffer too small\n", __func__);
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 	memcpy(buffer + snap_size, vs, sizeof(*vs));
 	snap_size += sizeof(*vs);
@@ -837,7 +868,7 @@ vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 	if (sizeof(*vc) > buf_size - snap_size) {
 		fprintf(stderr, "%s: buffer too small\n", __func__);
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 	memcpy(buffer + snap_size, vc, sizeof(*vc));
 	snap_size += sizeof(*vc);
@@ -847,7 +878,7 @@ vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 		if (sizeof(vs->vs_queues[i]) > buf_size - snap_size) {
 			fprintf(stderr, "%s: buffer too small\n", __func__);
 			err = -1;
-			goto done_resume;
+			goto done;
 		}
 		memcpy(buffer + snap_size, &vs->vs_queues[i],
 		       sizeof(vs->vs_queues[i]));
@@ -861,7 +892,7 @@ vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 		if (qsize > buf_size - snap_size) {
 			fprintf(stderr, "%s: buffer too small\n", __func__);
 			err = -1;
-			goto done_resume;
+			goto done;
 		}
 		memcpy(buffer + snap_size, qmem, qsize);
 		snap_size += qsize;
@@ -879,15 +910,13 @@ vi_pci_snapshot(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 		if (err) {
 			fprintf(stderr, "%s: failed to save dev softc: %s\n",
 				__func__, vc->vc_name);
-			goto done_resume;
+			goto done;
 		}
 		assert(snap_size < buf_size - *snapshot_size);
 		*snapshot_size += snap_size;
 	}
 
-done_resume:
-	assert(vc->vc_resume != NULL);
-	(*vc->vc_resume)(DEV_SOFTC(vs));
+done:
 	return (err);
 }
 
@@ -1001,27 +1030,25 @@ vi_pci_restore(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 	int ret, err = 0;
 
 	vc = vs->vs_vc;
-	assert(vc->vc_pause != NULL);
-	(*vc->vc_pause)(DEV_SOFTC(vs));
 
 	ret = vi_pci_restore_softc(vs, buffer, buf_size);
 	if (ret < 0) {
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 	offset += ret;
 
 	ret = vi_pci_restore_consts(vc, buffer + offset, buf_size - offset);
 	if (ret < 0) {
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 	offset += ret;
 
 	ret = vi_pci_restore_queues(vs, buffer + offset, buf_size - offset);
 	if (ret < 0) {
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 	offset += ret;
 
@@ -1032,7 +1059,7 @@ vi_pci_restore(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 			fprintf(stderr, "%s: failed to restore dev softc: %s\n",
 				__func__, vc->vc_name);
 			err = -1;
-			goto done_resume;
+			goto done;
 		}
 		offset += ret;
 	}
@@ -1041,11 +1068,9 @@ vi_pci_restore(struct vmctx *ctx, struct pci_devinst *pi, void *buffer,
 		fprintf(stderr, "%s: [WARN] restore buffer not used entirely",
 			__func__);
 		err = -1;
-		goto done_resume;
+		goto done;
 	}
 
-done_resume:
-	assert(vc->vc_resume != NULL);
-	(*vc->vc_resume)(DEV_SOFTC(vs));
+done:
 	return (err);
 }
