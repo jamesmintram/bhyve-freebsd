@@ -41,8 +41,9 @@ typedef int (*pcpu_bp_harden)(void);
 	u_int	pc_acpi_id;	/* ACPI CPU id */		\
 	u_int	pc_midr;	/* stored MIDR value */	\
 	uint64_t pc_clock;						\
+	void	*pc_vcpu;						\
 	pcpu_bp_harden pc_bp_harden;					\
-	char __pad[233]
+	char __pad[225]
 
 #ifdef _KERNEL
 
