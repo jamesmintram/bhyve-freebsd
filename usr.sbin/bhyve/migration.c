@@ -2437,6 +2437,13 @@ live_migrate_send(struct vmctx *ctx, int socket)
 
 	// Last memory migration round
 	/* Freeze VM */
+
+	error = pause_devs(ctx);
+	if (error != 0) {
+		fprintf(stderr, "Could not pause devices\r\n");
+		goto done;
+	}
+
 	error = vm_vcpu_lock_all(ctx);
 	if (error != 0) {
 		fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
@@ -2496,6 +2503,9 @@ live_migrate_send(struct vmctx *ctx, int socket)
 	// Poweroff the vm
 	vm_vcpu_unlock_all(ctx);
 
+	error = resume_devs(ctx);
+	if (error != 0)
+		fprintf(stderr, "Could not resume devices\r\n");
 
 	error = vm_suspend(ctx, VM_SUSPEND_POWEROFF);
 	if (error != 0) {
@@ -2511,6 +2521,9 @@ live_migrate_send(struct vmctx *ctx, int socket)
 unlock_vm_and_exit:
 	vm_vcpu_unlock_all(ctx);
 done:
+	error = resume_devs(ctx);
+	if (error != 0)
+		fprintf(stderr, "Could not resume devices\r\n");
 	if (page_list_indexes != NULL)
 		free(page_list_indexes);
 	return (error);
@@ -2746,6 +2759,14 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 		goto done;
 	} // else continue the warm migration procedure
 
+	rc = pause_devs(ctx);
+	if (rc != 0) {
+		fprintf(stderr, "Could not pause devices\r\n");
+		error = rc;
+		goto done;
+	}
+
+
 	rc = vm_vcpu_lock_all(ctx);
 	if (rc != 0) {
 		fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
@@ -2774,6 +2795,7 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 	}
 
 	// Send PCI data
+
 	rc =  migrate_devs(ctx, s, MIGRATION_SEND_REQ);
 	if (rc < 0) {
 		fprintf(stderr,
@@ -2798,6 +2820,10 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 	// Poweroff the vm
 	vm_vcpu_unlock_all(ctx);
 
+	rc = resume_devs(ctx);
+	if (rc != 0)
+		fprintf(stderr, "Could not resume devices\r\n");
+
 	rc = vm_suspend(ctx, VM_SUSPEND_POWEROFF);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to suspend vm\n");
@@ -2815,6 +2841,9 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 unlock_vm_and_exit:
 	vm_vcpu_unlock_all(ctx);
 done:
+	rc = resume_devs(ctx);
+	if (rc != 0)
+		fprintf(stderr, "Could not resume devices\r\n");
 	close(s);
 	return (error);
 }
