@@ -135,6 +135,7 @@
 /* VMPDIR_EL2 - Virtualization Multiprocessor ID Register */
 #define	VMPIDR_EL2_U	0x0000000040000000
 #define	VMPIDR_EL2_MT	0x0000000001000000
+#define	VMPIDR_EL2_RES1	0x0000000080000000
 
 /* VTCR_EL2 - Virtualization Translation Control Register */
 #define	VTCR_EL2_RES1		(0x1 << 31)
