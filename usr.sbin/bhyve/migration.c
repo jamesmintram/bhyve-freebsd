@@ -1343,7 +1343,7 @@ migration_send_data_remote(int socket, const void *msg, size_t len)
 	total_sent = 0;
 
 	while (to_send > 0) {
-		sent  = send(socket, msg + total_sent, to_send, 0);
+		sent  = send(socket, msg + total_sent, to_send, MSG_NOSIGNAL);
 		if (sent < 0) {
 			perror("Error while sending data");
 			return (sent);
