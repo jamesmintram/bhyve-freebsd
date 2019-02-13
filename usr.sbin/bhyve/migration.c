@@ -2175,7 +2175,7 @@ migration_fill_vmm_migration_pages_req(struct vmctx *ctx,
 
 static int
 send_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
-	   char *page_list, size_t page_list_size)
+	   char *page_list, size_t page_list_size, int already_locked)
 {
 	size_t dirty_pages;
 	size_t current_pos, i;
@@ -2202,9 +2202,15 @@ send_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
 
 		req->pages_required = 0;
 
+		if (!already_locked)
+			vm_vcpu_lock_all(ctx);
+
 		rc = migration_fill_vmm_migration_pages_req(ctx, req, page_list,
 							    page_list_size,
 							    &current_pos);
+
+		if (!already_locked)
+			vm_vcpu_unlock_all(ctx);
 
 		if (rc < 0) {
 			fprintf(stderr, "%s: Could not get pages\r\n",
@@ -2358,7 +2364,7 @@ live_migrate_send(struct vmctx *ctx, int socket)
 
 	char *page_list_indexes = NULL;
 	struct vmm_migration_pages_req memory_req;
-	int index;
+	int i;
 
 	size_t migration_completed;
 
@@ -2389,90 +2395,55 @@ live_migrate_send(struct vmctx *ctx, int socket)
 		return (error);
 	}
 
-	/* Freeze VM */
-	vm_vcpu_lock_all(ctx);
+	for (i = 0; i <= MIGRATION_ROUNDS; i++) {
+		if (i == MIGRATION_ROUNDS) {
+			// Last Round
+			error = pause_devs(ctx);
+			if (error != 0) {
+				fprintf(stderr, "Could not pause devices\r\n");
+				goto done;
+			}
 
-	/* Clear the VPO_VMM_DIRTY bit for each of the guest's vm_pages */
-	clear_vmm_dirty_bits(ctx);
-
-	/* Un-freeze VM */
-	vm_vcpu_unlock_all(ctx);
-
-	/* page_list_indexes = all of the guest's vm_pages */
-	fill_page_list(page_list_indexes, lowmem_pages, 1);
-
-	error = send_pages(ctx, socket, &memory_req, page_list_indexes,
-			   lowmem_pages);
-	if (error != 0) {
-		fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
-			__func__);
-		goto done;
-	}
-
-	for (index = 0; index < MIGRATION_ROUNDS - 1; index ++) {
-		/* TODO: memset 0 on page_list_indexes */
-		fill_page_list(page_list_indexes, lowmem_pages, 0);
-
-		/* Freeze VM */
-		vm_vcpu_lock_all(ctx);
-
-		/* Search the dirty pages and populate page_list_index */
-		error = search_dirty_pages(ctx, page_list_indexes);
-		if (error != 0) {
-			fprintf(stderr,
-				"%s: Couldn't search for the dirty pages\r\n",
-				__func__);
-			goto done;
+			error = vm_vcpu_lock_all(ctx);
+			if (error != 0) {
+				fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
+				goto done;
+			}
 		}
 
-		/* Clear the VPO_VMM_DIRTY bit for each of the guest's vm_pages */
-		clear_vmm_dirty_bits(ctx);
-		/* Un-freeze VM */
-		vm_vcpu_unlock_all(ctx);
+		if (i == 0) {
+			// First Round
+			fill_page_list(page_list_indexes, lowmem_pages, 1);
+		} else {
+			fill_page_list(page_list_indexes, lowmem_pages, 0);
+
+			if (i != MIGRATION_ROUNDS) {
+				vm_vcpu_lock_all(ctx);
+			}
+
+			/* Search the dirty pages and populate page_list_index */
+			error = search_dirty_pages(ctx, page_list_indexes);
+
+			if (error != 0) {
+				fprintf(stderr,
+				"%s: Couldn't search for the dirty pages\r\n",
+				__func__);
+				goto unlock_vm_and_exit;
+			}
+
+			if (i != MIGRATION_ROUNDS) {
+				vm_vcpu_unlock_all(ctx);
+			}
+		}
 
 		error = send_pages(ctx, socket, &memory_req, page_list_indexes,
-				   lowmem_pages);
+				   lowmem_pages, i == MIGRATION_ROUNDS ? 1 : 0);
 		if (error != 0) {
 			fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
 				__func__);
 			goto done;
 		}
-	}
 
-	// Last memory migration round
-	/* Freeze VM */
-
-	error = pause_devs(ctx);
-	if (error != 0) {
-		fprintf(stderr, "Could not pause devices\r\n");
-		goto done;
-	}
-
-	error = vm_vcpu_lock_all(ctx);
-	if (error != 0) {
-		fprintf(stderr, "%s: Could not suspend vm\r\n", __func__);
-		goto done;
-	}
-
-	/* TODO: memset 0 on page_list_indexes */
-	fill_page_list(page_list_indexes, lowmem_pages, 0);
-
-
-	/* Search the dirty pages and populate page_list_index */
-	error = search_dirty_pages(ctx, page_list_indexes);
-	if (error != 0) {
-		fprintf(stderr,
-			"%s: Couldn't search for the dirty pages\r\n",
-			__func__);
-		goto unlock_vm_and_exit;
-	}
-
-	error = send_pages(ctx, socket, &memory_req, page_list_indexes,
-			   lowmem_pages);
-	if (error != 0) {
-		fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
-			__func__);
-		goto unlock_vm_and_exit;
 	}
 
 	// Send kern data
@@ -2836,6 +2807,7 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req, bool live)
 	/* Wait for CPUs to suspend. TODO: write this properly. */
 	sleep(5);
 	vm_destroy(ctx);
+
 	/* XXX */
 	exit(0);
 
