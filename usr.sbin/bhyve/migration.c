@@ -2131,7 +2131,7 @@ end:
 	return (error);
 }
 
-#define MIGRATION_ROUNDS	1
+#define MIGRATION_ROUNDS	4
 
 static size_t
 num_dirty_pages(char *page_list, size_t size)
@@ -2365,8 +2365,18 @@ live_migrate_send(struct vmctx *ctx, int socket)
 	char *page_list_indexes = NULL;
 	struct vmm_migration_pages_req memory_req;
 	int i;
+	uint8_t rounds = MIGRATION_ROUNDS;
 
 	size_t migration_completed;
+
+	/* Send the number of memory rounds to destination */
+
+	error = migration_send_data_remote(socket, &rounds, sizeof(rounds));
+	if (error != 0) {
+		fprintf(stderr, "%s: Could not send the number of rounds remote"
+				"\r\n", __func__);
+		goto done;
+	}
 
 	/* Compute memory_size and pages*/
 	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
@@ -2515,6 +2525,14 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 	struct vmm_migration_pages_req memory_req;
 	char *page_list_indexes = NULL;
 	int index;
+	uint8_t rounds;
+
+	error = migration_recv_data_from_remote(socket, &rounds, sizeof(rounds));
+	if (error != 0) {
+		fprintf(stderr, "%s: Could not recv the number of rounds from "
+				"remote\r\n", __func__);
+		goto done;
+	}
 
 	/* Compute memory_size and pages*/
 	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
@@ -2550,7 +2568,7 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 	 * Since the vcpus are not started, we don't need to lock them, so we
 	 * can do the memory migration pretty straight-forward.
 	 */
-	for (index = 0; index < MIGRATION_ROUNDS + 1; index ++) {
+	for (index = 0; index <= rounds; index ++) {
 		fill_page_list(page_list_indexes, lowmem_pages, 0);
 
 		error = recv_pages(ctx, socket, &memory_req,
@@ -2561,8 +2579,6 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 			goto done;
 		}
 	}
-
-	
 
 	error = 0;
 done:
