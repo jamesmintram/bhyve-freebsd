@@ -2473,8 +2473,10 @@ vm_object_get_page(vm_object_t object, vm_pindex_t pindex, void *dst)
 		return (-1);
 	}
 
+	vm_page_xbusy(page);
 	page_src = PHYS_TO_DMAP(VM_PAGE_TO_PHYS(page));
 	memcpy(dst, (void *)page_src, PAGE_SIZE);
+	vm_page_xunbusy(page);
 
 	return (0);
 }
