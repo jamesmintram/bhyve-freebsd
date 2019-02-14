@@ -1365,6 +1365,9 @@ vm_page_test_vmm_dirty(vm_page_t m)
 
 	vm_page_test_dirty(m);
 
+	VM_OBJECT_ASSERT_WLOCKED(m->object);
+	if (m->vmm_dirty != 1 && pmap_is_modified(m))
+		m->vmm_dirty = 1;
 
 	//value = m->oflags & VPO_VMM_DIRTY;
 	value = m->vmm_dirty;
