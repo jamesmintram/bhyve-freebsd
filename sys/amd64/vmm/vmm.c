@@ -3278,7 +3278,9 @@ vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
 	printf("%s\r\n", __func__);
 	int error = 0;
 	struct vmspace *vm_vmspace;
+	struct vmspace *crt_vmspace;
 	struct vm_map *vmmap;
+	struct vm_map *crt_vmmap;
 	struct vm_map_entry *entry;
 	struct vm_object *object;
 	struct vm_radix *rtree;
@@ -3291,11 +3293,22 @@ vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
 		return (error);
 	}
 
+	crt_vmspace = vmspace_acquire_ref(curproc);
+	if (crt_vmspace == NULL) {
+		printf("%s: Failed acquire vmspace for bhyve-process\r\n", __func__);
+		return (-1);
+	}
+
 	vmmap = &vm_vmspace->vm_map;
 
 	vm_map_lock(vmmap);
 	if (vmmap->busy)
 		vm_map_wait_busy(vmmap);
+
+	crt_vmmap = &crt_vmspace->vm_map;
+	vm_map_lock(crt_vmmap);
+	if (crt_vmmap->busy)
+		vm_map_wait_busy(crt_vmmap);
 
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
@@ -3310,6 +3323,7 @@ vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
 	}
 
 	vm_map_unlock(vmmap);
+	vm_map_unlock(crt_vmmap);
 
 	return (error);
 }
