@@ -1347,13 +1347,15 @@ vm_page_dirty_KBI(vm_page_t m)
 	KASSERT(m->valid == VM_PAGE_BITS_ALL,
 	    ("vm_page_dirty: page is invalid!"));
 	m->dirty = VM_PAGE_BITS_ALL;
-	m->oflags |= VPO_VMM_DIRTY;
+	//m->oflags |= VPO_VMM_DIRTY;
+	m->vmm_dirty = 1;
 }
 
 void
 vm_page_clear_vmm_dirty_bit(vm_page_t m)
 {
-	m->oflags &= ~VPO_VMM_DIRTY;
+	//m->oflags &= ~VPO_VMM_DIRTY;
+	m->vmm_dirty = 0;
 }
 
 uint8_t
@@ -1363,7 +1365,9 @@ vm_page_test_vmm_dirty(vm_page_t m)
 
 	vm_page_test_dirty(m);
 
-	value = m->oflags & VPO_VMM_DIRTY;
+
+	//value = m->oflags & VPO_VMM_DIRTY;
+	value = m->vmm_dirty;
 
 	if (value == 0)
 		return (0);
