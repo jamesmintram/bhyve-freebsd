@@ -58,10 +58,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/cpu.h>
 #include <machine/intr.h>
 #include <machine/md_var.h>
-
-#if defined(__arm__)
-#include <machine/machdep.h> /* For arm_set_delay */
-#endif
+#include <machine/machdep.h> /* For arm_set_delay/vhe_enabled() */
 
 #ifdef FDT
 #include <dev/ofw/openfirm.h>
@@ -89,8 +86,8 @@ __FBSDID("$FreeBSD$");
 #define	GT_CNTKCTL_PL0PCTEN	(1 << 0) /* PL0 CNTPCT and CNTFRQ access */
 
 struct arm_tmr_softc {
-	struct resource		*res[4];
-	void			*ihl[4];
+	struct resource		*res[5];
+	void			*ihl[5];
 	uint64_t		(*get_cntxct)(bool);
 	uint32_t		clkfreq;
 	struct eventtimer	et;
@@ -103,7 +100,8 @@ static struct resource_spec timer_spec[] = {
 	{ SYS_RES_IRQ,		0,	RF_ACTIVE },	/* Secure */
 	{ SYS_RES_IRQ,		1,	RF_ACTIVE },	/* Non-secure */
 	{ SYS_RES_IRQ,		2,	RF_ACTIVE | RF_OPTIONAL }, /* Virt */
-	{ SYS_RES_IRQ,		3,	RF_ACTIVE | RF_OPTIONAL	}, /* Hyp */
+	{ SYS_RES_IRQ,		3,	RF_ACTIVE | RF_OPTIONAL	}, /* Hyp Physical */
+	{ SYS_RES_IRQ,		4,	RF_ACTIVE | RF_OPTIONAL	}, /* Hyp Virtual */
 	{ -1, 0 }
 };
 
@@ -436,14 +434,25 @@ arm_tmr_attach(device_t dev)
 #ifdef __arm__
 	sc->physical = true;
 #else /* __aarch64__ */
-	/* If we do not have a virtual timer use the physical. */
-	sc->physical = (sc->res[2] == NULL) ? true : false;
+	if (vhe_enabled()) {
+		KASSERT(sc->res[3] != NULL || sc->res[4] != NULL,
+		    ("VHE enabled but no EL2 timers found"));
+		/*
+		 * According to ARM DI0487D, the virtual EL2 timer is always
+		 * present when VHE is present. However, we like being extra
+		 * cautious here in case the firmware/dts advertises the timers
+		 * incorrectly.
+		 */
+		sc->physical = (sc->res[4] == NULL) ? true : false;
+	} else {
+		sc->physical = (sc->res[2] == NULL) ? true : false;
+	}
 #endif
 
 	arm_tmr_sc = sc;
 
 	/* Setup secure, non-secure and virtual IRQs handler */
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < 5; i++) {
 		/* If we do not have the interrupt, skip it. */
 		if (sc->res[i] == NULL)
 			continue;

@@ -1000,7 +1000,7 @@ cache_setup(void)
 }
 
 void
-initarm(struct arm64_bootparams *abp)
+initarm(struct arm64_bootparams *abp, register_t vhe_enabled)
 {
 	struct efi_fb *efifb;
 	struct efi_map_header *efihdr;
@@ -1073,6 +1073,11 @@ initarm(struct arm64_bootparams *abp)
 	    "msr tpidr_el1, %0" :: "r"(pcpup));
 
 	PCPU_SET(curthread, &thread0);
+
+	if (vhe_enabled != 0 && vhe_enabled != 1)
+		/* Value probably got corrupted in locore.S */
+		panic("Cannot determine the state of Virtual Host Extensions");
+	PCPU_SET(vhe_enabled, (vhe_enabled == 1 ? true : false));
 
 	/* Do basic tuning, hz etc */
 	init_param1();

@@ -39,12 +39,13 @@ typedef int (*pcpu_bp_harden)(void);
 typedef int (*pcpu_ssbd)(int);
 
 #define	PCPU_MD_FIELDS							\
+	bool pc_vhe_enabled;					\
 	u_int	pc_acpi_id;	/* ACPI CPU id */		\
 	u_int	pc_midr;	/* stored MIDR value */	\
 	uint64_t pc_clock;						\
 	pcpu_bp_harden pc_bp_harden;					\
 	pcpu_ssbd pc_ssbd;						\
-	char __pad[225]
+	char __pad[224]
 
 #ifdef _KERNEL
 

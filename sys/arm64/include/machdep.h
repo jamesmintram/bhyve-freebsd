@@ -46,7 +46,13 @@ enum arm64_bus {
 extern enum arm64_bus arm64_bus_method;
 
 void dbg_init(void);
-void initarm(struct arm64_bootparams *);
+void initarm(struct arm64_bootparams *, register_t);
 extern void (*pagezero)(void *);
+
+static inline bool
+vhe_enabled()
+{
+	return PCPU_GET(vhe_enabled);
+}
 
 #endif /* _MACHINE_MACHDEP_H_ */

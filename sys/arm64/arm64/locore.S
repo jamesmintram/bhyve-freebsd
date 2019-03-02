@@ -57,8 +57,8 @@
 	.text
 	.globl _start
 _start:
-	/* Drop to EL1 */
-	bl	drop_to_el1
+	/* Do any necessary EL2 setup */
+	bl	setup_el2
 
 	/*
 	 * Disable the MMU. We may have entered the kernel with it on and
@@ -137,6 +137,8 @@ virtdone:
 
 	/* trace back starts here */
 	mov	fp, #0
+	/* Is VHE enabled? */
+	mov	x1, x17
 	/* Branch to C code */
 	bl	initarm
 	bl	mi_startup
@@ -163,8 +165,8 @@ ENTRY(mpentry)
 	/* Disable interrupts */
 	msr	daifset, #2
 
-	/* Drop to EL1 */
-	bl	drop_to_el1
+	/* Do any necessary EL2 setup */
+	bl	setup_el2
 
 	/* Set the context id */
 	msr	contextidr_el1, xzr
@@ -187,43 +189,52 @@ mp_virtdone:
 	mul	x5, x0, x5
 	add	sp, x4, x5
 
+	/* Is VHE enabled? */
+	mov	x1, x17
 	b	init_secondary
 END(mpentry)
 #endif
 
 /*
- * If we are started in EL2, configure the required hypervisor
- * registers and drop to EL1.
+ * If we are started in EL2 and VHE is available, configure the required
+ * hypervisor registers and continue running in EL2. Otherwise, run in EL1.
+ *
+ * x17 is modified and will be passed back to the calling site to check if VHE
+ * has been enabled.
  */
-drop_to_el1:
+setup_el2:
+	/* Do nothing if we haven't booted in EL2 */
 	mrs	x1, CurrentEL
 	lsr	x1, x1, #2
 	cmp	x1, #0x2
-	b.eq	1f
+	b.eq	el2_boot
+	/* VHE disabled */
+	mov	x17, xzr
 	ret
-1:
-	/* Configure the Hypervisor */
+
+el2_boot:
+	mrs	x1, id_aa64mmfr1_el1
+	ubfx	x1, x1, #ID_AA64MMFR1_VH_SHIFT, #ID_AA64MMFR1_VH_BITS
+	cbnz	x1, vhe_boot
+
+	/*
+	 * We support only VHE virtualization, do minimal EL2 configuration and
+	 * drop to EL1.
+	 */
 	mov	x2, #(HCR_RW)
 	msr	hcr_el2, x2
 
-	/* Load the Virtualization Process ID Register */
-	mrs	x2, midr_el1
-	msr	vpidr_el2, x2
-
-	/* Load the Virtualization Multiprocess ID Register */
-	mrs	x2, mpidr_el1
-	msr	vmpidr_el2, x2
+	mov	x9, x30
+	bl	setup_id_registers
+	mov	x30, x9
 
 	/* Set the bits that need to be 1 in sctlr_el1 */
 	ldr	x2, .Lsctlr_res1
 	msr	sctlr_el1, x2
 
-	/* Don't trap to EL2 for exceptions */
-	mov	x2, #CPTR_RES1
-	msr	cptr_el2, x2
-
-	/* Don't trap to EL2 for CP15 traps */
-	msr	hstr_el2, xzr
+	mov	x9, x30
+	bl	disable_el2_traps
+	mov	x30, x9
 
 	/* Enable access to the physical timers at EL1 */
 	mrs	x2, cnthctl_el2
@@ -240,29 +251,83 @@ drop_to_el1:
 	mov	x2, #(PSR_F | PSR_I | PSR_A | PSR_D | PSR_M_EL1h)
 	msr	spsr_el2, x2
 
+	mov	x9, x30
+	bl	setup_gic_cpu_if
+	msr	elr_el2, x9
+	/* VHE disabled */
+	mov	x17, xzr
+	isb
+	eret
+
+vhe_boot:
+	/*
+	 * Setup the ID registers before we activate VHE, so we can use the
+	 * _EL1 encoding for the EL1 registers.
+	 */
+	mov	x9, x30
+	bl	setup_id_registers
+	mov	x30, x9
+
+	/* VHE on */
+	ldr	x2, .Lhcr_vhe
+	msr	hcr_el2, x2
+	isb
+
+	mov	x9, x30
+	bl	disable_el2_traps
+	mov	x30, x9
+
+	mov	x9, x30
+	bl	setup_gic_cpu_if
+	mov	x30, x9
+	/* VHE enabled */
+	mov	x17, #1
+	isb
+	ret
+
+	.align 3
+.Lsctlr_res1:
+	.quad SCTLR_RES1
+.Lhcr_vhe:
+	.quad (HCR_E2H | HCR_TGE)
+
+	.align 2
+setup_id_registers:
+	/* Load the Virtualization Process ID Register */
+	mrs	x2, midr_el1
+	msr	vpidr_el2, x2
+
+	/* Load the Virtualization Multiprocess ID Register */
+	mrs	x2, mpidr_el1
+	msr	vmpidr_el2, x2
+	ret
+
+	.align 2
+disable_el2_traps:
+	/* Don't trap to EL2 for exceptions */
+	mov	x2, #CPTR_RES1
+	msr	cptr_el2, x2
+
+	/* Don't trap to EL2 for CP15 traps */
+	msr	hstr_el2, xzr
+	ret
+
+	.align 2
+setup_gic_cpu_if:
 	/* Configure GICv3 CPU interface */
 	mrs	x2, id_aa64pfr0_el1
 	/* Extract GIC bits from the register */
 	ubfx	x2, x2, #ID_AA64PFR0_GIC_SHIFT, #ID_AA64PFR0_GIC_BITS
 	/* GIC[3:0] == 0001 - GIC CPU interface via special regs. supported */
 	cmp	x2, #(ID_AA64PFR0_GIC_CPUIF_EN >> ID_AA64PFR0_GIC_SHIFT)
-	b.ne	2f
+	b.ne	1f
 
 	mrs	x2, icc_sre_el2
 	orr	x2, x2, #ICC_SRE_EL2_EN	/* Enable access from insecure EL1 */
 	orr	x2, x2, #ICC_SRE_EL2_SRE	/* Enable system registers */
 	msr	icc_sre_el2, x2
-2:
-
-	/* Set the address to return to our return address */
-	msr	elr_el2, x30
-	isb
-
-	eret
-
-	.align 3
-.Lsctlr_res1:
-	.quad SCTLR_RES1
+1:
+	ret
 
 #define	VECT_EMPTY	\
 	.align 7;	\

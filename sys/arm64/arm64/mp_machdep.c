@@ -130,7 +130,7 @@ struct pcb stoppcbs[MAXCPU];
 static int cpu0 = -1;
 
 void mpentry(unsigned long cpuid);
-void init_secondary(uint64_t);
+void init_secondary(uint64_t, register_t);
 
 uint8_t secondary_stacks[MAXCPU - 1][PAGE_SIZE * KSTACK_PAGES] __aligned(16);
 
@@ -187,7 +187,7 @@ release_aps(void *dummy __unused)
 SYSINIT(start_aps, SI_SUB_SMP, SI_ORDER_FIRST, release_aps, NULL);
 
 void
-init_secondary(uint64_t cpu)
+init_secondary(uint64_t cpu, register_t vhe_enabled)
 {
 	struct pcpu *pcpup;
 
@@ -208,6 +208,11 @@ init_secondary(uint64_t cpu)
 	KASSERT(PCPU_GET(idlethread) != NULL, ("no idle thread"));
 	pcpup->pc_curthread = pcpup->pc_idlethread;
 	pcpup->pc_curpcb = pcpup->pc_idlethread->td_pcb;
+
+	/* Value might have gotten corrupted in locore.S */
+	KASSERT(vhe_enabled == 0 || vhe_enabled == 1,
+		("Cannot determine the state of Virtual Host Extensions"));
+	pcpup->pc_vhe_enabled = (vhe_enabled == 1 ? true : false);
 
 	/*
 	 * Identify current CPU. This is necessary to setup

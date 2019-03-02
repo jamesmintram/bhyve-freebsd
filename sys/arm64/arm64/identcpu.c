@@ -462,6 +462,15 @@ print_cpu_features(u_int cpu)
 	printf("%s\n", sbuf_data(sb));
 	sbuf_clear(sb);
 
+	sbuf_printf(sb, "CPU%3d: ", cpu);
+	if (PCPU_GET(vhe_enabled))
+		sbuf_printf(sb, "Virtual Host Extensions enabled");
+	else
+		sbuf_printf(sb, "Virtual Host Extensions not present");
+	sbuf_finish(sb);
+	printf("%s\n", sbuf_data(sb));
+	sbuf_clear(sb);
+
 	/*
 	 * There is a hardware errata where, if one CPU is performing a TLB
 	 * invalidation while another is performing a store-exclusive the
