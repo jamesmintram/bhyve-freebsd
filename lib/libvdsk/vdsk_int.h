@@ -31,6 +31,7 @@
 #define	__VDSK_INT_H__
 
 #include <sys/linker_set.h>
+#include <pthread.h>
 
 #define DPRINTF(params) if (vdsk_debug) printf params
 #define WPRINTF(params) printf params
