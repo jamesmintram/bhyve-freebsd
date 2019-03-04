@@ -326,7 +326,7 @@ blockif_open(const char *optstr, const char *ident)
 	//struct diocgattr_arg arg;
 	off_t psectsz, psectoff;
 	int extra, fd, i;
-	int nocache, sync, ro, candelete, geom, ssopt, pssopt;
+	int nocache, sync, ro, candelete, ssopt, pssopt;
 #if 0
 #ifndef WITHOUT_CAPSICUM
 	cap_rights_t rights;
@@ -486,7 +486,7 @@ blockif_open(const char *optstr, const char *ident)
 	bc->bc_magic = BLOCKIF_SIG;
 	//bc->bc_fd = fd;
 	bc->bc_ischr = S_ISCHR(sbuf.st_mode);
-	bc->bc_isgeom = geom;
+	bc->bc_isgeom = 0;
 	bc->bc_candelete = candelete;
 	bc->bc_rdonly = ro;
 	//bc->bc_size = size;
