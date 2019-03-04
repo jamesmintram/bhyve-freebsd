@@ -89,42 +89,51 @@ struct qcheader {
 /*
  * The internal representation of a "disk".
  */
+struct qcdsk {
+	/* QCOW */
+	struct qcheader header;
+	struct vdsk *vdsk;
+	struct vdsk *base;
+
+	uint64_t	*l1;
+	char		*scratch;
+	off_t		end;
+	uint32_t	clustersz;
+	off_t		disksz; /* In bytes */
+	uint32_t	cryptmethod;
+
+	uint32_t	l1sz;
+	off_t		l1off;
+
+	uint32_t	l2sz;
+	off_t		l2off;
+
+	off_t		refoff;
+	uint32_t	refsz;
+
+	uint32_t	nsnap;
+	off_t		snapoff;
+
+	/* v3 */
+	uint64_t	incompatfeatures;
+	uint64_t	autoclearfeatures;
+	uint32_t	refssz;
+	uint32_t	headersz;
+	pthread_rwlock_t lock;
+};
+
 struct vdsk {
 	struct vdsk_format *fmt;
-	struct vdsk *base;
-	struct qcheader header;
 	int	fd;
 	int	fflags;
 	char	*filename;
 	struct stat fsbuf;
 	off_t	capacity;
 	int	sectorsize;
-
-	/* QCOW */
-        uint64_t        *l1;
-        char            *scratch;
-        off_t           end;
-        uint32_t        clustersz;
-        off_t           disksz; /* In bytes */
-        uint32_t        cryptmethod;
-
-        uint32_t        l1sz;
-        off_t           l1off;
-
-	uint32_t	l2sz;
-	off_t		l2off;
-
-        off_t           refoff;
-        uint32_t        refsz;
-
-        uint32_t        nsnap;
-        off_t           snapoff;
-
-        /* v3 */
-        uint64_t        incompatfeatures;
-        uint64_t        autoclearfeatures;
-        uint32_t        refssz;
-        uint32_t        headersz;
+	void *aux;
+	union {
+		struct qcdsk qcow;
+	} aux_data;
 } __attribute__((aligned(16)));
 
 #endif /* __VDSK_INT_H__ */
