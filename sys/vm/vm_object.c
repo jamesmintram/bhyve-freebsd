@@ -2474,6 +2474,10 @@ vm_object_get_page(vm_object_t object, vm_pindex_t pindex, void *dst)
 	}
 
 	vm_page_xbusy(page);
+	page->oflags &= ~VPO_VMM_DIRTY;
+	vm_page_xunbusy(page);
+	pmap_clear_modify(page);
+	vm_page_xbusy(page);
 	page_src = PHYS_TO_DMAP(VM_PAGE_TO_PHYS(page));
 	memcpy(dst, (void *)page_src, PAGE_SIZE);
 	vm_page_xunbusy(page);

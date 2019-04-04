@@ -218,7 +218,6 @@ struct vm_page {
 	/* so, on normal X86 kernels, they must be at least 8 bits wide */
 	vm_page_bits_t valid;		/* map of valid DEV_BSIZE chunks (O) */
 	vm_page_bits_t dirty;		/* map of dirty DEV_BSIZE chunks (M) */
-	uint8_t vmm_dirty;
 };
 
 /*
@@ -741,8 +740,7 @@ vm_page_dirty(vm_page_t m)
 	vm_page_dirty_KBI(m);
 #else
 	m->dirty = VM_PAGE_BITS_ALL;
-	//m->oflags |= VPO_VMM_DIRTY;
-	m->vmm_dirty = 1;
+	m->oflags |= VPO_VMM_DIRTY;
 #endif
 }
 
