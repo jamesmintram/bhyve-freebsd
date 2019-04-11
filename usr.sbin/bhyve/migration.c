@@ -2348,12 +2348,6 @@ fill_page_list(char *page_list, size_t list_len, char c)
 		page_list[index] = c;
 }
 
-static inline void
-clear_vmm_dirty_bits(struct vmctx *ctx)
-{
-	vm_clear_vmm_dirty_bits(ctx);
-}
-
 static int
 live_migrate_send(struct vmctx *ctx, int socket)
 {

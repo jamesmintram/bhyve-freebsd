@@ -305,7 +305,6 @@ int	vm_restore_mem(struct vmctx *ctx, int vmmem_fd, size_t size);
 int	vm_get_pages_num(struct vmctx *ctx, size_t *lowmem_pages,
 			 size_t *highmem_pages);
 int	vm_get_dirty_page_list(struct vmctx *ctx, char *page_list);
-void	vm_clear_vmm_dirty_bits(struct vmctx *ctx);
 
 int	vm_copy_vmm_pages(struct vmctx *ctx,
 			 struct vmm_migration_pages_req *pages_req);

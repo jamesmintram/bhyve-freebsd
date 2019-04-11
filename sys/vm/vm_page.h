@@ -601,7 +601,6 @@ void vm_page_assert_locked_KBI(vm_page_t m, const char *file, int line);
 void vm_page_lock_assert_KBI(vm_page_t m, int a, const char *file, int line);
 #endif
 
-void vm_page_clear_vmm_dirty_bit(vm_page_t m);
 uint8_t vm_page_test_vmm_dirty(vm_page_t m);
 
 #define	vm_page_assert_sbusied(m)					\

@@ -1764,13 +1764,6 @@ vm_get_dirty_page_list(struct vmctx *ctx, char *page_list)
 	return (error);
 }
 
-void
-vm_clear_vmm_dirty_bits(struct vmctx *ctx)
-{
-
-	ioctl(ctx->fd, VM_CLEAR_VMM_DIRTY_BITS);
-}
-
 int
 vm_restore_time(struct vmctx *ctx)
 {

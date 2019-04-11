@@ -819,9 +819,6 @@ vmmdev_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 	case VM_RESTORE_TIME:
 		error = vm_restore_time(sc->vm);
 		break;
-	case VM_CLEAR_VMM_DIRTY_BITS:
-		error = vm_clear_vmm_dirty_bits(sc->vm);
-		break;
 	case VM_GET_DIRTY_PAGE_LIST:
 		page_list = (struct vm_get_dirty_page_list *)data;
 		error = vm_get_dirty_page_list(sc->vm, page_list->page_list);

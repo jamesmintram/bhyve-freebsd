@@ -282,7 +282,6 @@ int vm_restore_req(struct vm *vm, enum snapshot_req req, void *buffer,
 		   size_t buf_size);
 int vm_restore_time(struct vm *vm);
 int vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list);
-int vm_clear_vmm_dirty_bits(struct vm *vm);
 int vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req);
 
 #ifdef _SYS__CPUSET_H_
