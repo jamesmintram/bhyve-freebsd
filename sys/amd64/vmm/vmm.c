@@ -3273,7 +3273,7 @@ vm_restore_time(struct vm *vm)
 }
 
 int
-vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
+vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 {
 	printf("%s\r\n", __func__);
 	int error = 0;
@@ -3284,6 +3284,13 @@ vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
 	struct vm_map_entry *entry;
 	struct vm_object *object;
 	struct vm_radix *rtree;
+	uint8_t *page_list;
+
+
+	page_list = list->page_list;
+
+	if (page_list == NULL)
+		return (-1);
 
 	vm_vmspace = vm->vmspace;
 
@@ -3312,14 +3319,21 @@ vm_get_dirty_page_list(struct vm *vm, uint8_t *page_list)
 
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
+		if (entry->start == list->lowmem.start &&
+		    entry->end == list->lowmem.end) {
+			printf("%s: Found lowmem object\r\n", __func__);
+			if (object == NULL)
+				continue;
+			VM_OBJECT_WLOCK(object);
+			rtree = &object->rtree;
 
-		if (object == NULL)
-			continue;
-		VM_OBJECT_WLOCK(object);
-		rtree = &object->rtree;
+			vm_radix_tree_walk_complete_page_list(rtree, page_list);
+			VM_OBJECT_WUNLOCK(object);
+		}
 
-		vm_radix_tree_walk_complete_page_list(rtree, page_list);
-		VM_OBJECT_WUNLOCK(object);
+		if (entry->start == list->highmem.start &&
+		    entry->end == list->highmem.end) {
+		}
 	}
 
 	vm_map_unlock(vmmap);
@@ -3359,7 +3373,9 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	struct vm_map *vmmap;
 	struct vm_map_entry *entry;
 	struct vm_object *object;
+	struct vmm_migration_segment_type segment;
 
+	segment = pages_req->segment;
 	vm_vmspace = vm->vmspace;
 
 	if (vm_vmspace == NULL) {
@@ -3377,12 +3393,15 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
 
-		if (object == NULL)
-			continue;
+		if (entry->start == segment.start &&
+		    entry->end == segment.end) {
+			if (object == NULL)
+				continue;
 
-		VM_OBJECT_WLOCK(object);
-		vm_copy_object_pages(object, pages_req);
-		VM_OBJECT_WUNLOCK(object);
+			VM_OBJECT_WLOCK(object);
+			vm_copy_object_pages(object, pages_req);
+			VM_OBJECT_WUNLOCK(object);
+		}
 		break;
 	}
 

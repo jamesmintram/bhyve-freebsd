@@ -286,7 +286,10 @@ struct vm_restore_req {
 };
 
 struct vm_get_dirty_page_list {
-	uint8_t *page_list;
+	uint8_t	*page_list;
+	size_t	num_pages;
+	struct vmm_migration_segment_type lowmem;
+	struct vmm_migration_segment_type highmem;
 };
 
 enum {

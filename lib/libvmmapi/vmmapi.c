@@ -1752,13 +1752,43 @@ vm_get_pages_num(struct vmctx *ctx, size_t *lowmem_pages, size_t *highmem_pages)
 }
 
 int
-vm_get_dirty_page_list(struct vmctx *ctx, char *page_list)
+vm_set_vmm_migration_segments(struct vmctx *ctx,
+			      struct vmm_migration_segment_type *lowmem,
+			      struct vmm_migration_segment_type *highmem)
+{
+
+	if (lowmem != NULL) {
+		lowmem->type = LOWMEM_SEGMENT;
+		lowmem->start = 0;
+		lowmem->end = ctx->lowmem;
+	}
+
+	if (highmem != NULL) {
+		if (ctx->highmem != 0) {
+			highmem->type = HIGHMEM_SEGMENT;
+			highmem->start = ctx->lowmem_limit;
+			highmem->end = 4 * GB + ctx->highmem;
+		} else {
+			highmem->type = INVALID_SEGMENT;
+		}
+	}
+
+	return (0);
+}
+
+int
+vm_get_dirty_page_list(struct vmctx *ctx, char *page_list, size_t num_pages)
 {
 	int error;
 	struct vm_get_dirty_page_list list;
 
 	bzero(&list, sizeof(struct vm_get_dirty_page_list));
 	list.page_list = (uint8_t *)page_list;
+	list.num_pages = num_pages;
+
+	error = vm_set_vmm_migration_segments(ctx, &(list.lowmem),
+					      &(list.highmem));
+
 	error = ioctl(ctx->fd, VM_GET_DIRTY_PAGE_LIST, &list);
 
 	return (error);
@@ -1809,11 +1839,29 @@ vm_copy_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
 }
 
 int
-vm_init_vmm_migration_pages_req(struct vmm_migration_pages_req *req)
+vm_init_vmm_migration_pages_req(struct vmctx *ctx,
+				struct vmm_migration_pages_req *req,
+				enum vmm_segment_type type)
 {
 	size_t index;
 	struct vmm_migration_page *page;
 
+	switch(type) {
+		case LOWMEM_SEGMENT:
+			vm_set_vmm_migration_segments(ctx,
+						      &(req->segment),
+						      NULL);
+			break;
+		case HIGHMEM_SEGMENT:
+			vm_set_vmm_migration_segments(ctx,
+						      NULL,
+						      &(req->segment));
+			break;
+		default:
+			fprintf(stderr, "%s: Invalid type of segment\r\n",
+				__func__);
+			return (-1);
+	}
 	for (index = 0; index < VMM_PAGE_CHUNK; index++) {
 		page = &req->pages[index];
 		page->page = malloc(PAGE_SIZE * sizeof(uint8_t));

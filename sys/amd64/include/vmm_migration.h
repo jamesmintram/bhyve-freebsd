@@ -45,8 +45,9 @@ struct vmm_migration_page {
 };
 
 enum vmm_segment_type {
-	LOWMEM_SEGMENT = 0,
+	LOWMEM_SEGMENT  = 0,
 	HIGHMEM_SEGMENT = 1,
+	INVALID_SEGMENT = 2,
 };
 
 /*
@@ -62,9 +63,10 @@ struct vmm_migration_segment_type {
 };
 
 struct vmm_migration_pages_req {
-	size_t				pages_required;
-	enum migration_req_type		req_type;
-	struct vmm_migration_page	pages[VMM_PAGE_CHUNK];
+	size_t					pages_required;
+	enum migration_req_type			req_type;
+	struct vmm_migration_segment_type	segment;
+	struct vmm_migration_page		pages[VMM_PAGE_CHUNK];
 };
 
 #endif

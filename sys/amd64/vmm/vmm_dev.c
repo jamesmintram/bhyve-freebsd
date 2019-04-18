@@ -821,7 +821,7 @@ vmmdev_ioctl(struct cdev *cdev, u_long cmd, caddr_t data, int fflag,
 		break;
 	case VM_GET_DIRTY_PAGE_LIST:
 		page_list = (struct vm_get_dirty_page_list *)data;
-		error = vm_get_dirty_page_list(sc->vm, page_list->page_list);
+		error = vm_get_dirty_page_list(sc->vm, page_list);
 		break;
 	case VM_COPY_VMM_PAGES:
 		pages_req = (struct vmm_migration_pages_req *)data;

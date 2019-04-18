@@ -2330,9 +2330,7 @@ search_dirty_pages(struct vmctx *ctx, char *page_list)
 	if (page_list == NULL)
 		return (-1);
 
-	/* TODO: implement ioctl and function into libvmmapi */
-
-	vm_get_dirty_page_list(ctx, page_list);
+	vm_get_dirty_page_list(ctx, page_list, lowmem_pages);
 	return (0);
 }
 
@@ -2392,7 +2390,8 @@ live_migrate_send(struct vmctx *ctx, int socket)
 		goto done;
 	}
 
-	error = vm_init_vmm_migration_pages_req(&memory_req);
+	error = vm_init_vmm_migration_pages_req(ctx, &memory_req,
+						LOWMEM_SEGMENT);
 	if (error < 0) {
 		fprintf(stderr, "%s: Could not initialize "
 			"struct vmm_migration_pages_req\r\n", __func__);
@@ -2548,7 +2547,8 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 		goto done;
 	}
 
-	error = vm_init_vmm_migration_pages_req(&memory_req);
+	error = vm_init_vmm_migration_pages_req(ctx, &memory_req,
+						LOWMEM_SEGMENT);
 	if (error < 0) {
 		fprintf(stderr, "%s: Could not initialize "
 			"struct vmm_migration_pages_req\r\n", __func__);
