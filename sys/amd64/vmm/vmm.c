@@ -3272,6 +3272,24 @@ vm_restore_time(struct vm *vm)
 	return (0);
 }
 
+static inline void
+vm_search_dirty_pages_in_object(vm_object_t object, size_t start, size_t end,
+		      size_t offset, uint8_t *page_list)
+{
+	vm_pindex_t pindex;
+	vm_page_t m;
+
+	VM_OBJECT_WLOCK(object);
+	for (pindex = start / PAGE_SIZE; pindex < end / PAGE_SIZE; pindex ++) {
+		m = vm_page_lookup(object, pindex);
+		if (m != NULL) {
+			page_list[pindex - offset] = vm_page_test_vmm_dirty(m);
+		}
+	}
+
+	VM_OBJECT_WUNLOCK(object);
+}
+
 int
 vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 {
@@ -3283,9 +3301,8 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 	struct vm_map *crt_vmmap;
 	struct vm_map_entry *entry;
 	struct vm_object *object;
-	struct vm_radix *rtree;
 	uint8_t *page_list;
-
+	size_t offset;
 
 	page_list = list->page_list;
 
@@ -3324,15 +3341,23 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 			printf("%s: Found lowmem object\r\n", __func__);
 			if (object == NULL)
 				continue;
-			VM_OBJECT_WLOCK(object);
-			rtree = &object->rtree;
-
-			vm_radix_tree_walk_complete_page_list(rtree, page_list);
-			VM_OBJECT_WUNLOCK(object);
+			vm_search_dirty_pages_in_object(object,
+							list->lowmem.start,
+							list->lowmem.end,
+							0,
+							page_list);
 		}
 
 		if (entry->start == list->highmem.start &&
 		    entry->end == list->highmem.end) {
+			if (object == NULL)
+				continue;
+			offset = (list->highmem.start - list->lowmem.end) / PAGE_SIZE;
+			vm_search_dirty_pages_in_object(object,
+							list->highmem.start,
+							list->highmem.end,
+							offset,
+							page_list);
 		}
 	}
 
