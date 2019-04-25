@@ -44,20 +44,13 @@ struct vmm_migration_page {
 	uint8_t		*page;
 };
 
-enum vmm_segment_type {
-	LOWMEM_SEGMENT  = 0,
-	HIGHMEM_SEGMENT = 1,
-	INVALID_SEGMENT = 2,
-};
-
 /*
  * A bhyve guest has two memory segments:
  * - lowmem segment: mapped from 0GB to 3GB (which is lowmem_limit)
  * - highmem segment: mapped starting from 4GB
  * The object that represents a segment is identified by start and end values.
  * */
-struct vmm_migration_segment_type {
-	enum vmm_segment_type	type;
+struct vmm_migration_segment {
 	vm_offset_t		start;
 	vm_offset_t		end;
 };
@@ -65,7 +58,8 @@ struct vmm_migration_segment_type {
 struct vmm_migration_pages_req {
 	size_t					pages_required;
 	enum migration_req_type			req_type;
-	struct vmm_migration_segment_type	segment;
+	struct vmm_migration_segment		lowmem_segment;
+	struct vmm_migration_segment		highmem_segment;
 	struct vmm_migration_page		pages[VMM_PAGE_CHUNK];
 };
 

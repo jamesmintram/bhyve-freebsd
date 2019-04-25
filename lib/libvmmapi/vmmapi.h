@@ -305,14 +305,13 @@ int	vm_restore_mem(struct vmctx *ctx, int vmmem_fd, size_t size);
 int	vm_get_pages_num(struct vmctx *ctx, size_t *lowmem_pages,
 			 size_t *highmem_pages);
 int	vm_set_vmm_migration_segments(struct vmctx *ctx,
-				struct vmm_migration_segment_type *lowmem,
-				struct vmm_migration_segment_type *highmem);
+				struct vmm_migration_segment *lowmem,
+				struct vmm_migration_segment *highmem);
 int	vm_get_dirty_page_list(struct vmctx *ctx, char *page_list, size_t num);
 
 int	vm_copy_vmm_pages(struct vmctx *ctx,
 			 struct vmm_migration_pages_req *pages_req);
 int	vm_init_vmm_migration_pages_req(struct vmctx *ctx,
-					struct vmm_migration_pages_req *req,
-					enum vmm_segment_type type);
+					struct vmm_migration_pages_req *req);
 
 #endif	/* _VMMAPI_H_ */

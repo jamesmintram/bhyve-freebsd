@@ -3398,9 +3398,10 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	struct vm_map *vmmap;
 	struct vm_map_entry *entry;
 	struct vm_object *object;
-	struct vmm_migration_segment_type segment;
+	struct vmm_migration_segment lowmem_segment, highmem_segment;
 
-	segment = pages_req->segment;
+	lowmem_segment = pages_req->lowmem_segment;
+	highmem_segment = pages_req->highmem_segment;
 	vm_vmspace = vm->vmspace;
 
 	if (vm_vmspace == NULL) {
@@ -3418,8 +3419,8 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
 
-		if (entry->start == segment.start &&
-		    entry->end == segment.end) {
+		if (entry->start == lowmem_segment.start &&
+		    entry->end == lowmem_segment.end) {
 			if (object == NULL)
 				continue;
 

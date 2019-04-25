@@ -2390,8 +2390,7 @@ live_migrate_send(struct vmctx *ctx, int socket)
 		goto done;
 	}
 
-	error = vm_init_vmm_migration_pages_req(ctx, &memory_req,
-						LOWMEM_SEGMENT);
+	error = vm_init_vmm_migration_pages_req(ctx, &memory_req);
 	if (error < 0) {
 		fprintf(stderr, "%s: Could not initialize "
 			"struct vmm_migration_pages_req\r\n", __func__);
@@ -2547,8 +2546,7 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 		goto done;
 	}
 
-	error = vm_init_vmm_migration_pages_req(ctx, &memory_req,
-						LOWMEM_SEGMENT);
+	error = vm_init_vmm_migration_pages_req(ctx, &memory_req);
 	if (error < 0) {
 		fprintf(stderr, "%s: Could not initialize "
 			"struct vmm_migration_pages_req\r\n", __func__);

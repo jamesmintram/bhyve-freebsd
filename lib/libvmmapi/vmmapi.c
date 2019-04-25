@@ -1753,23 +1753,19 @@ vm_get_pages_num(struct vmctx *ctx, size_t *lowmem_pages, size_t *highmem_pages)
 
 int
 vm_set_vmm_migration_segments(struct vmctx *ctx,
-			      struct vmm_migration_segment_type *lowmem,
-			      struct vmm_migration_segment_type *highmem)
+			      struct vmm_migration_segment *lowmem,
+			      struct vmm_migration_segment *highmem)
 {
 
 	if (lowmem != NULL) {
-		lowmem->type = LOWMEM_SEGMENT;
 		lowmem->start = 0;
 		lowmem->end = ctx->lowmem;
 	}
 
 	if (highmem != NULL) {
 		if (ctx->highmem != 0) {
-			highmem->type = HIGHMEM_SEGMENT;
 			highmem->start = 4 * GB;
 			highmem->end = 4 * GB + ctx->highmem;
-		} else {
-			highmem->type = INVALID_SEGMENT;
 		}
 	}
 
@@ -1840,28 +1836,14 @@ vm_copy_vmm_pages(struct vmctx *ctx, struct vmm_migration_pages_req *pages_req)
 
 int
 vm_init_vmm_migration_pages_req(struct vmctx *ctx,
-				struct vmm_migration_pages_req *req,
-				enum vmm_segment_type type)
+				struct vmm_migration_pages_req *req)
 {
 	size_t index;
 	struct vmm_migration_page *page;
 
-	switch(type) {
-		case LOWMEM_SEGMENT:
-			vm_set_vmm_migration_segments(ctx,
-						      &(req->segment),
-						      NULL);
-			break;
-		case HIGHMEM_SEGMENT:
-			vm_set_vmm_migration_segments(ctx,
-						      NULL,
-						      &(req->segment));
-			break;
-		default:
-			fprintf(stderr, "%s: Invalid type of segment\r\n",
-				__func__);
-			return (-1);
-	}
+	vm_set_vmm_migration_segments(ctx, &(req->lowmem_segment),
+						&(req->highmem_segment));
+
 	for (index = 0; index < VMM_PAGE_CHUNK; index++) {
 		page = &req->pages[index];
 		page->page = malloc(PAGE_SIZE * sizeof(uint8_t));
