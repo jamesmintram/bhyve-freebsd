@@ -1766,7 +1766,7 @@ vm_set_vmm_migration_segments(struct vmctx *ctx,
 	if (highmem != NULL) {
 		if (ctx->highmem != 0) {
 			highmem->type = HIGHMEM_SEGMENT;
-			highmem->start = ctx->lowmem_limit;
+			highmem->start = 4 * GB;
 			highmem->end = 4 * GB + ctx->highmem;
 		} else {
 			highmem->type = INVALID_SEGMENT;
