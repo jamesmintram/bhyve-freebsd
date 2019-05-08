@@ -803,6 +803,11 @@ vm_radix_tree_walk_complete_page_list_rec(struct vm_radix_node *rnode, uint8_t *
 
 	if (vm_radix_isleaf(rnode)) {
 		m = vm_radix_topage(rnode);
+		if (m == NULL) {
+			printf("%s: page is null\r\n", __func__);
+			return;
+		}
+
 		page_list[m->pindex] = vm_page_test_vmm_dirty(m);
 		return;
 	}

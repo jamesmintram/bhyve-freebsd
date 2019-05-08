@@ -137,6 +137,9 @@ struct mem_map {
 };
 #define	VM_MAX_MEMMAPS	4
 
+#define MB		(1024UL * 1024)
+#define GB		(1024UL * MB)
+
 /*
  * Initialization:
  * (o) initialized the first time the VM is created
@@ -3338,7 +3341,6 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 		object = entry->object.vm_object;
 		if (entry->start == list->lowmem.start &&
 		    entry->end == list->lowmem.end) {
-			printf("%s: Found lowmem object\r\n", __func__);
 			if (object == NULL)
 				continue;
 			vm_search_dirty_pages_in_object(object,
@@ -3368,23 +3370,45 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 }
 
 static inline void
-vm_copy_object_pages(vm_object_t object,
+vm_copy_object_pages(vm_object_t lowmem_object, vm_object_t highmem_object,
 			struct vmm_migration_pages_req *page_req)
 {
 	vm_pindex_t pindex;
+	vm_object_t object;
 	struct vmm_migration_page migration_page;
-	size_t page_idx;
+	size_t page_idx, limit_page;
 	void *dst;
-	enum migration_req_type req_type = page_req->req_type;
+	size_t pindex_offset;
+	enum migration_req_type req_type;
 
+	req_type = page_req->req_type;
+
+	if (lowmem_object == NULL) {
+		printf("%s: lowmem_object is NULL\r\n", __func__);
+		return;
+	}
+	limit_page = 3UL * GB / PAGE_SIZE;
 	for (page_idx = 0; page_idx < page_req->pages_required; page_idx ++) {
 		migration_page = page_req->pages[page_idx];
 		pindex = migration_page.pindex;
 		dst = (void *) migration_page.page;
-		if (req_type == VMM_GET_PAGES)
-			vm_object_get_page(object, pindex, dst);
+		if (pindex >= limit_page) {
+			if (highmem_object == NULL) {
+				printf("%s: highmem_object is NULL\r\n", __func__);
+				return;
+			}
+			object = highmem_object;
+			pindex_offset = 1UL * GB / PAGE_SIZE;
+		} else {
+			object = lowmem_object;
+			pindex_offset = 0;
+		}
+
+		if (req_type == VMM_GET_PAGES) {
+			vm_object_get_page(object, pindex + pindex_offset, dst);
+		}
 		else if (req_type == VMM_SET_PAGES)
-			vm_object_set_page(object, pindex, dst);
+			vm_object_set_page(object, pindex + pindex_offset, dst);
 		else
 			return;
 	}
@@ -3397,7 +3421,7 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	struct vmspace *vm_vmspace;
 	struct vm_map *vmmap;
 	struct vm_map_entry *entry;
-	struct vm_object *object;
+	struct vm_object *lowmem_object, *highmem_object, *object;
 	struct vmm_migration_segment lowmem_segment, highmem_segment;
 
 	lowmem_segment = pages_req->lowmem_segment;
@@ -3416,20 +3440,32 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	if (vmmap->busy)
 		vm_map_wait_busy(vmmap);
 
+	lowmem_object = NULL;
+	highmem_object = NULL;
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
 
 		if (entry->start == lowmem_segment.start &&
 		    entry->end == lowmem_segment.end) {
-			if (object == NULL)
-				continue;
-
-			VM_OBJECT_WLOCK(object);
-			vm_copy_object_pages(object, pages_req);
-			VM_OBJECT_WUNLOCK(object);
+			lowmem_object = object;
 		}
-		break;
+
+		if (entry->start == highmem_segment.start &&
+		    entry->end == highmem_segment.end) {
+			highmem_object = object;
+		}
 	}
+
+	if (lowmem_object == NULL)
+		return (-1);
+
+	VM_OBJECT_WLOCK(lowmem_object);
+	if (highmem_object != NULL)
+		VM_OBJECT_WLOCK(highmem_object);
+	vm_copy_object_pages(lowmem_object, highmem_object, pages_req);
+	if (highmem_object != NULL)
+		VM_OBJECT_WUNLOCK(highmem_object);
+	VM_OBJECT_WUNLOCK(object);
 
 	vm_map_unlock(vmmap);
 

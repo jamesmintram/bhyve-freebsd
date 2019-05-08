@@ -2309,10 +2309,11 @@ recv_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
 static int
 search_dirty_pages(struct vmctx *ctx, char *page_list)
 {
-	size_t lowmem_pages, highmem_pages;
+	size_t lowmem_pages, highmem_pages, pages;
 	int error = 0;
 
 	error = vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
+	pages = lowmem_pages + highmem_pages;
 	if (error != 0) {
 		fprintf(stderr,
 			"%s: Error while trying to get page number\r\n",
@@ -2320,17 +2321,10 @@ search_dirty_pages(struct vmctx *ctx, char *page_list)
 		return (-1);
 	}
 
-	if (highmem_pages != 0) {
-		fprintf(stderr,
-			"%s: Highmem migration not implemented\r\n",
-			__func__);
-		return (-1);
-	}
-
 	if (page_list == NULL)
 		return (-1);
 
-	vm_get_dirty_page_list(ctx, page_list, lowmem_pages);
+	vm_get_dirty_page_list(ctx, page_list, pages);
 	return (0);
 }
 
@@ -2351,7 +2345,7 @@ live_migrate_send(struct vmctx *ctx, int socket)
 {
 	int error = 0;
 	size_t memory_size = 0, lowmem_size = 0, highmem_size = 0;
-	size_t lowmem_pages, highmem_pages;
+	size_t lowmem_pages, highmem_pages, pages;
 	char *baseaddr;
 
 	char *page_list_indexes = NULL;
@@ -2372,18 +2366,12 @@ live_migrate_send(struct vmctx *ctx, int socket)
 
 	/* Compute memory_size and pages*/
 	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
-	if (highmem_size > 0) {
-		fprintf(stderr, "%s: Live migration not implemented for highmem"
-			" segment\r\n", __func__);
-		error = -1;
-		goto done;
-	}
 
 	memory_size = lowmem_size + highmem_size;
 	vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
-
+	pages = lowmem_pages + highmem_pages;
 	/* alloc page_list_indexes */
-	page_list_indexes = malloc (lowmem_pages * sizeof(char));
+	page_list_indexes = malloc (pages * sizeof(char));
 	if (page_list_indexes == NULL) {
 		perror("Page list indexes could not be allocated");
 		error = -1;
@@ -2415,9 +2403,9 @@ live_migrate_send(struct vmctx *ctx, int socket)
 
 		if (i == 0) {
 			// First Round
-			fill_page_list(page_list_indexes, lowmem_pages, 1);
+			fill_page_list(page_list_indexes, pages, 1);
 		} else {
-			fill_page_list(page_list_indexes, lowmem_pages, 0);
+			fill_page_list(page_list_indexes, pages, 0);
 
 			if (i != MIGRATION_ROUNDS) {
 				vm_vcpu_lock_all(ctx);
@@ -2439,7 +2427,7 @@ live_migrate_send(struct vmctx *ctx, int socket)
 		}
 
 		error = send_pages(ctx, socket, &memory_req, page_list_indexes,
-				   lowmem_pages, i == MIGRATION_ROUNDS ? 1 : 0);
+				   pages, i == MIGRATION_ROUNDS ? 1 : 0);
 		if (error != 0) {
 			fprintf(stderr, "%s: Couldn't send dirty pages to dest\r\n",
 				__func__);
@@ -2511,7 +2499,7 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 {
 	int error = 0;
 	size_t memory_size = 0, lowmem_size = 0, highmem_size = 0;
-	size_t lowmem_pages, highmem_pages;
+	size_t lowmem_pages, highmem_pages, pages;
 	char *baseaddr;
 
 	struct vmm_migration_pages_req memory_req;
@@ -2528,18 +2516,13 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 
 	/* Compute memory_size and pages*/
 	vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem_size, &highmem_size);
-	if (highmem_size > 0) {
-		fprintf(stderr, "%s: Live migration not implemented for highmem"
-			" segment\r\n", __func__);
-		error = -1;
-		goto done;
-	}
 
 	memory_size = lowmem_size + highmem_size;
 	vm_get_pages_num(ctx, &lowmem_pages, &highmem_pages);
+	pages = lowmem_pages + highmem_pages;
 
 	/* alloc page_list_indexes */
-	page_list_indexes = malloc (lowmem_pages * sizeof(char));
+	page_list_indexes = malloc(pages * sizeof(char));
 	if (page_list_indexes == NULL) {
 		perror("Page list indexes could not be allocated");
 		error = -1;
@@ -2561,10 +2544,10 @@ live_migrate_recv(struct vmctx *ctx, int socket)
 	 * can do the memory migration pretty straight-forward.
 	 */
 	for (index = 0; index <= rounds; index ++) {
-		fill_page_list(page_list_indexes, lowmem_pages, 0);
+		fill_page_list(page_list_indexes, pages, 0);
 
 		error = recv_pages(ctx, socket, &memory_req,
-				   page_list_indexes, lowmem_pages);
+				   page_list_indexes, pages);
 		if (error != 0) {
 			fprintf(stderr, "%s: Couldn't recv dirty pages from source\r\n",
 				__func__);

@@ -2469,7 +2469,7 @@ vm_object_get_page(vm_object_t object, vm_pindex_t pindex, void *dst)
 
 	page = vm_page_lookup(object, pindex);
 	if (page == NULL) {
-		printf("%s: cannot find page\r\n", __func__);
+		printf("%s: cannot find page %zu\r\n", __func__, pindex);
 		return (-1);
 	}
 
