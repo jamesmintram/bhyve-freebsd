@@ -48,9 +48,6 @@ vm_page_t	vm_radix_remove(struct vm_radix *rtree, vm_pindex_t index);
 vm_page_t	vm_radix_replace(struct vm_radix *rtree, vm_page_t newpage);
 void		vm_radix_zinit(void);
 
-void		vm_radix_tree_walk_complete_page_list(struct vm_radix *rtree,
-						      uint8_t *page_list);
-
 static __inline void
 vm_radix_init(struct vm_radix *rtree)
 {

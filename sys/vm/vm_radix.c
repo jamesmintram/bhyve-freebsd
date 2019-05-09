@@ -792,41 +792,6 @@ vm_radix_wait(void)
 	uma_zwait(vm_radix_node_zone);
 }
 
-static void
-vm_radix_tree_walk_complete_page_list_rec(struct vm_radix_node *rnode, uint8_t *page_list)
-{
-	vm_page_t m;
-	int slot;
-
-	if (rnode == NULL)
-		return;
-
-	if (vm_radix_isleaf(rnode)) {
-		m = vm_radix_topage(rnode);
-		if (m == NULL) {
-			printf("%s: page is null\r\n", __func__);
-			return;
-		}
-
-		page_list[m->pindex] = vm_page_test_vmm_dirty(m);
-		return;
-	}
-
-	for (slot = 0; slot < VM_RADIX_COUNT; slot ++) {
-		vm_radix_tree_walk_complete_page_list_rec(rnode->rn_child[slot], page_list);
-	}
-}
-
-void
-vm_radix_tree_walk_complete_page_list(struct vm_radix *rtree, uint8_t *page_list)
-{
-	struct vm_radix_node *rnode;
-
-	rnode = vm_radix_getroot(rtree);
-
-	vm_radix_tree_walk_complete_page_list_rec(rnode, page_list);
-}
-
 #ifdef DDB
 /*
  * Show details about the given radix node.
