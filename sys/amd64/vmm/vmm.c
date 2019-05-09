@@ -59,7 +59,6 @@ __FBSDID("$FreeBSD$");
 #include <vm/vnode_pager.h>
 #include <vm/swap_pager.h>
 #include <vm/uma.h>
-#include <vm/vm_radix.h>
 
 #include <machine/cpu.h>
 #include <machine/pcb.h>
