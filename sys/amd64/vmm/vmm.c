@@ -3405,10 +3405,15 @@ vm_copy_object_pages(vm_object_t lowmem_object, vm_object_t highmem_object,
 		}
 
 		if (req_type == VMM_GET_PAGES) {
+			VM_OBJECT_WLOCK(object);
 			vm_object_get_page(object, pindex + pindex_offset, dst);
+			VM_OBJECT_WUNLOCK(object);
 		}
-		else if (req_type == VMM_SET_PAGES)
+		else if (req_type == VMM_SET_PAGES) {
+			VM_OBJECT_WLOCK(object);
 			vm_object_set_page(object, pindex + pindex_offset, dst);
+			VM_OBJECT_WUNLOCK(object);
+		}
 		else
 			return;
 	}
@@ -3459,13 +3464,7 @@ vm_copy_vmm_pages(struct vm *vm, struct vmm_migration_pages_req *pages_req)
 	if (lowmem_object == NULL)
 		return (-1);
 
-	VM_OBJECT_WLOCK(lowmem_object);
-	if (highmem_object != NULL)
-		VM_OBJECT_WLOCK(highmem_object);
 	vm_copy_object_pages(lowmem_object, highmem_object, pages_req);
-	if (highmem_object != NULL)
-		VM_OBJECT_WUNLOCK(highmem_object);
-	VM_OBJECT_WUNLOCK(object);
 
 	vm_map_unlock(vmmap);
 
