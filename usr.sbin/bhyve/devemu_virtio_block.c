@@ -249,7 +249,7 @@ devemu_vtblk_proc(struct devemu_vtblk_softc *sc, struct vqueue_info *vq)
 	}
 	io->io_req.br_resid = iolen;
 
-	DPRINTF(("virtio-block: %s op, %zd bytes, %d segs, offset %ld\n\r",
+	DPRINTF(("virtio-block: %s op, %zd bytes, %d segs, offset %lld\n\r",
 		 writeop ? "write" : "read/ident", iolen, i - 1,
 		 (long long) io->io_req.br_offset));
 
