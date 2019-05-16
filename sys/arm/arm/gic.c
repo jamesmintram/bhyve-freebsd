@@ -181,7 +181,6 @@ static int gic_config_irq(int irq, enum intr_trigger trig,
 static void gic_post_filter(void *);
 #endif
 
-#ifdef INTRNG
 static inline void
 gic_irq_unmask(struct arm_gic_softc *sc, u_int irq)
 {
