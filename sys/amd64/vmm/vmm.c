@@ -3298,9 +3298,7 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 	printf("%s\r\n", __func__);
 	int error = 0;
 	struct vmspace *vm_vmspace;
-	struct vmspace *crt_vmspace;
 	struct vm_map *vmmap;
-	struct vm_map *crt_vmmap;
 	struct vm_map_entry *entry;
 	struct vm_object *object;
 	uint8_t *page_list;
@@ -3319,27 +3317,18 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 		return (error);
 	}
 
-	crt_vmspace = vmspace_acquire_ref(curproc);
-	if (crt_vmspace == NULL) {
-		printf("%s: Failed acquire vmspace for bhyve-process\r\n", __func__);
-		return (-1);
-	}
-
 	vmmap = &vm_vmspace->vm_map;
 
 	vm_map_lock(vmmap);
 	if (vmmap->busy)
 		vm_map_wait_busy(vmmap);
 
-	crt_vmmap = &crt_vmspace->vm_map;
-	vm_map_lock(crt_vmmap);
-	if (crt_vmmap->busy)
-		vm_map_wait_busy(crt_vmmap);
-
 	for (entry = vmmap->header.next; entry != &vmmap->header; entry = entry->next) {
 		object = entry->object.vm_object;
+
 		if (entry->start == list->lowmem.start &&
 		    entry->end == list->lowmem.end) {
+			// if object is lowmem
 			if (object == NULL)
 				continue;
 			vm_search_dirty_pages_in_object(object,
@@ -3353,6 +3342,7 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 		    entry->end == list->highmem.end) {
 			if (object == NULL)
 				continue;
+			// if object is highmem
 			offset = (list->highmem.start - list->lowmem.end) / PAGE_SIZE;
 			vm_search_dirty_pages_in_object(object,
 							list->highmem.start,
@@ -3363,7 +3353,6 @@ vm_get_dirty_page_list(struct vm *vm, struct vm_get_dirty_page_list *list)
 	}
 
 	vm_map_unlock(vmmap);
-	vm_map_unlock(crt_vmmap);
 
 	return (error);
 }
