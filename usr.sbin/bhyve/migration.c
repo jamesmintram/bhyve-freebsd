@@ -2286,7 +2286,7 @@ recv_pages(struct vmctx *ctx, int socket, struct vmm_migration_pages_req *req,
 							     PAGE_SIZE);
 
 			if (rc < 0) {
-				fprintf(stderr, "%s: Could not recv pade %zu "
+				fprintf(stderr, "%s: Could not recv page %zu "
 					"from remote\r\n", __func__,
 					req->pages[i].pindex);
 				return (-1);
