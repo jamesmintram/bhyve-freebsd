@@ -1368,7 +1368,9 @@ migration_recv_data_from_remote(int socket, void *msg, size_t len)
 	while (to_recv > 0) {
 		recvt = recv(socket, msg + total_recv, to_recv, 0);
 		if (recvt == 0) {
-			break;
+			fprintf(stderr, "%s: Recv returned with 0. "
+				"Remote host has end connection\r\n", __func__);
+			return (-1);
 		}
 
 		if (recvt < 0) {
