@@ -12,5 +12,3 @@ SRCS+=				\
 MK_MAN=no
 
 BHYVE_BUS=	mmio
-
-CFLAGS+= 	-I${BHYVE_SYSDIR}/sys/dev/virtio/mmio
