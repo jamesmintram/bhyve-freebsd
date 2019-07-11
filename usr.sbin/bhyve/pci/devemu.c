@@ -240,11 +240,11 @@ done:
 void
 pci_print_supported_devices()
 {
-	struct pci_devemu **pdpp, *pdp;
+	struct devemu_dev **ddpp, *ddp;
 
-	SET_FOREACH(pdpp, pci_devemu_set) {
-		pdp = *pdpp;
-		printf("%s\n", pdp->pe_emu);
+	SET_FOREACH(ddpp, devemu_set) {
+		ddp = *ddpp;
+		printf("%s\n", ddp->de_emu);
 	}
 }
 
