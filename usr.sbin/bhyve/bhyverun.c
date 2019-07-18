@@ -439,6 +439,7 @@ fbsdrun_start_thread(void *param)
 	snprintf(tname, sizeof(tname), "vcpu %d", vcpu);
 	pthread_set_name_np(mtp->mt_thr, tname);
 
+	checkpoint_cpu_add(vcpu);
 	if (gdb_port != 0)
 		gdb_cpu_add(vcpu);
 
@@ -713,12 +714,12 @@ vmexit_mtrap(struct vmctx *ctx, struct vm_exit *vmexit, int *pvcpu)
 	assert(vmexit->inst_length == 0);
 
 	stats.vmexit_mtrap++;
-
 	if (gdb_port == 0) {
 		fprintf(stderr, "vm_loop: unexpected VMEXIT_MTRAP\n");
 		exit(4);
 	}
 	gdb_cpu_mtrap(*pvcpu);
+
 	return (VMEXIT_CONTINUE);
 }
 
@@ -797,11 +798,10 @@ static int
 vmexit_debug(struct vmctx *ctx, struct vm_exit *vmexit, int *pvcpu)
 {
 
-	if (gdb_port == 0) {
-		fprintf(stderr, "vm_loop: unexpected VMEXIT_DEBUG\n");
-		exit(4);
-	}
-	gdb_cpu_suspend(*pvcpu);
+	checkpoint_cpu_suspend(*pvcpu);
+	if (gdb_port != 0)
+		gdb_cpu_suspend(*pvcpu);
+	checkpoint_cpu_resume(*pvcpu);
 	return (VMEXIT_CONTINUE);
 }
 
