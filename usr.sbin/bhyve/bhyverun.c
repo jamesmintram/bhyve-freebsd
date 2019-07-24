@@ -1354,7 +1354,7 @@ main(int argc, char *argv[])
 	 */
 	setproctitle("%s", vmname);
 
-	if (restore_file != NULL || receive_migration) {
+	if (restore_file != NULL || receive_migration != NULL) {
 		vm_restore_time(ctx);
 	}
 
