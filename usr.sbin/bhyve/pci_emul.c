@@ -1937,6 +1937,7 @@ INOUT_PORT(pci_cfgdata, CONF1_DATA_PORT+1, IOPORT_F_INOUT, pci_emul_cfgdata);
 INOUT_PORT(pci_cfgdata, CONF1_DATA_PORT+2, IOPORT_F_INOUT, pci_emul_cfgdata);
 INOUT_PORT(pci_cfgdata, CONF1_DATA_PORT+3, IOPORT_F_INOUT, pci_emul_cfgdata);
 
+#ifdef BHYVE_SNAPSHOT
 /*
  * Saves/restores PCI device emulated state. Returns 0 on success.
  */
@@ -2073,15 +2074,16 @@ pci_pause(struct vmctx *ctx, const char *dev_name)
 
 	ret = pci_find_slotted_dev(dev_name, &pde, &pdi);
 	if (ret != 0) {
-		/* it is possible to call this function without checking that
-		 * the device is inserted first
+		/*
+		 * It is possible to call this function without
+		 * checking that the device is inserted first.
 		 */
 		fprintf(stderr, "%s: no such name: %s\n", __func__, dev_name);
 		return (0);
 	}
 
 	if (pde->pe_pause == NULL) {
-		/* The pause/resume functionality is optional */
+		/* The pause/resume functionality is optional. */
 		fprintf(stderr, "%s: not implemented for: %s\n",
 			__func__, dev_name);
 		return (0);
@@ -2101,15 +2103,16 @@ pci_resume(struct vmctx *ctx, const char *dev_name)
 
 	ret = pci_find_slotted_dev(dev_name, &pde, &pdi);
 	if (ret != 0) {
-		/* it is possible to call this function without checking that
-		 * the device is inserted first
+		/*
+		 * It is possible to call this function without
+		 * checking that the device is inserted first.
 		 */
 		fprintf(stderr, "%s: no such name: %s\n", __func__, dev_name);
 		return (0);
 	}
 
 	if (pde->pe_resume == NULL) {
-		/* The pause/resume functionality is optional */
+		/* The pause/resume functionality is optional. */
 		fprintf(stderr, "%s: not implemented for: %s\n",
 			__func__, dev_name);
 		return (0);
@@ -2117,6 +2120,7 @@ pci_resume(struct vmctx *ctx, const char *dev_name)
 
 	return (*pde->pe_resume)(ctx, pdi);
 }
+#endif
 
 #define PCI_EMUL_TEST
 #ifdef PCI_EMUL_TEST
@@ -2287,18 +2291,23 @@ pci_emul_dior(struct vmctx *ctx, int vcpu, struct pci_devinst *pi, int baridx,
 	return (value);
 }
 
+#ifdef BHYVE_SNAPSHOT
 int
 pci_emul_snapshot(struct vm_snapshot_meta *meta)
 {
+
 	return (0);
 }
+#endif
 
 struct pci_devemu pci_dummy = {
 	.pe_emu = "dummy",
 	.pe_init = pci_emul_dinit,
 	.pe_barwrite = pci_emul_diow,
 	.pe_barread = pci_emul_dior,
+#ifdef BHYVE_SNAPSHOT
 	.pe_snapshot = pci_emul_snapshot,
+#endif
 };
 PCI_EMUL_SET(pci_dummy);
 

@@ -43,7 +43,6 @@
 
 struct vm_snapshot_meta;
 
-
 #define BLOCKIF_IOV_MAX		33	/* not practical to be IOV_MAX */
 
 struct blockif_req {
@@ -71,11 +70,13 @@ int	blockif_flush(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_delete(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_cancel(struct blockif_ctxt *bc, struct blockif_req *breq);
 int	blockif_close(struct blockif_ctxt *bc);
+#ifdef BHYVE_SNAPSHOT
 void	blockif_pause(struct blockif_ctxt *bc);
 void	blockif_resume(struct blockif_ctxt *bc);
 int	blockif_snapshot_req(struct blockif_req *br,
-			     struct vm_snapshot_meta *meta);
+    struct vm_snapshot_meta *meta);
 int	blockif_snapshot(struct blockif_ctxt *bc,
-			 struct vm_snapshot_meta *meta);
+    struct vm_snapshot_meta *meta);
+#endif
 
 #endif /* _BLOCK_IF_H_ */

@@ -1193,7 +1193,8 @@ done:
 	return (error);
 }
 
-int get_checkpoint_msg(int conn_fd, struct vmctx *ctx)
+int
+get_checkpoint_msg(int conn_fd, struct vmctx *ctx)
 {
 	unsigned char buf[MAX_MSG_SIZE];
 	struct checkpoint_op *checkpoint_op;
@@ -1231,7 +1232,8 @@ done:
 /*
  * Listen for commands from bhyvectl
  */
-void * checkpoint_thread(void *param)
+void *
+checkpoint_thread(void *param)
 {
 	struct checkpoint_thread_info *thread_info;
 	socklen_t addr_len;
@@ -1263,7 +1265,7 @@ void * checkpoint_thread(void *param)
  * i.e. UNIX sockets for IPC with bhyvectl.
  */
 static int
-make_checkpoint_dir()
+make_checkpoint_dir(void)
 {
 	int err;
 
@@ -1426,7 +1428,7 @@ vm_get_snapshot_size(struct vm_snapshot_meta *meta)
 }
 
 int
-vm_snapshot_guest2host_addr(void **addrp, size_t len, int restore_null,
+vm_snapshot_guest2host_addr(void **addrp, size_t len, bool restore_null,
 			    struct vm_snapshot_meta *meta)
 {
 	int ret;
@@ -1435,8 +1437,8 @@ vm_snapshot_guest2host_addr(void **addrp, size_t len, int restore_null,
 	if (meta->op == VM_SNAPSHOT_SAVE) {
 		gaddr = paddr_host2guest(meta->ctx, *addrp);
 		if (gaddr == (vm_paddr_t) -1) {
-			if ((restore_null == false) ||
-			    ((restore_null == true) && (*addrp != NULL))) {
+			if (!restore_null ||
+			    (restore_null && (*addrp != NULL))) {
 				ret = EFAULT;
 				goto done;
 			}
@@ -1446,7 +1448,7 @@ vm_snapshot_guest2host_addr(void **addrp, size_t len, int restore_null,
 	} else if (meta->op == VM_SNAPSHOT_RESTORE) {
 		SNAPSHOT_VAR_OR_LEAVE(gaddr, meta, ret, done);
 		if (gaddr == (vm_paddr_t) -1) {
-			if (restore_null == false) {
+			if (!restore_null) {
 				ret = EFAULT;
 				goto done;
 			}
