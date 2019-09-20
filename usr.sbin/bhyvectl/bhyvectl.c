@@ -84,9 +84,11 @@ usage(bool cpu_intel)
 	"       [--cpu=<vcpu_number>]\n"
 	"       [--create]\n"
 	"       [--destroy]\n"
+#ifdef BHYVE_SNAPSHOT
 	"       [--checkpoint=<filename>]\n"
 	"       [--suspend=<filename>]\n"
 	"       [--migrate=<host,port>]\n"
+#endif
 	"       [--get-all]\n"
 	"       [--get-stats]\n"
 	"       [--set-desc-ds]\n"
@@ -296,9 +298,11 @@ enum x2apic_state x2apic_state;
 static int unassign_pptdev, bus, slot, func;
 static int run;
 static int get_cpu_topology;
+#ifdef BHYVE_SNAPSHOT
 static int vm_checkpoint_opt;
 static int vm_suspend_opt;
 static int vm_migrate;
+#endif
 
 /*
  * VMCB specific.
@@ -603,9 +607,11 @@ enum {
 	SET_RTC_TIME,
 	SET_RTC_NVRAM,
 	RTC_NVRAM_OFFSET,
+#ifdef BHYVE_SNAPSHOT
 	SET_CHECKPOINT_FILE,
 	SET_SUSPEND_FILE,
 	MIGRATE_VM,
+#endif
 };
 
 static void
@@ -1474,9 +1480,11 @@ setup_options(bool cpu_intel)
 		{ "get-suspended-cpus", NO_ARG,	&get_suspended_cpus, 	1 },
 		{ "get-intinfo", 	NO_ARG,	&get_intinfo,		1 },
 		{ "get-cpu-topology",	NO_ARG, &get_cpu_topology,	1 },
+#ifdef BHYVE_SNAPSHOT
 		{ "checkpoint", 	REQ_ARG, 0,	SET_CHECKPOINT_FILE},
 		{ "suspend", 		REQ_ARG, 0,	SET_SUSPEND_FILE},
 		{ "migrate", 		REQ_ARG, 0,	MIGRATE_VM},
+#endif
 	};
 
 	const struct option intel_opts[] = {
@@ -1694,6 +1702,7 @@ show_memseg(struct vmctx *ctx)
 	}
 }
 
+#ifdef BHYVE_SNAPSHOT
 static int
 send_checkpoint_op_req(struct vmctx *ctx, struct checkpoint_op *op)
 {
@@ -1753,7 +1762,7 @@ send_start_checkpoint(struct vmctx *ctx, const char *checkpoint_file)
 	strncpy(op.snapshot_filename, checkpoint_file, MAX_SNAPSHOT_VMNAME);
 	op.snapshot_filename[MAX_SNAPSHOT_VMNAME - 1] = 0;
 
-	return send_checkpoint_op_req(ctx, &op);
+	return (send_checkpoint_op_req(ctx, &op));
 }
 
 static int
@@ -1765,7 +1774,7 @@ send_start_suspend(struct vmctx *ctx, const char *suspend_file)
 	strncpy(op.snapshot_filename, suspend_file, MAX_SNAPSHOT_VMNAME);
 	op.snapshot_filename[MAX_SNAPSHOT_VMNAME - 1] = 0;
 
-	return send_checkpoint_op_req(ctx, &op);
+	return (send_checkpoint_op_req(ctx, &op));
 }
 
 static int
@@ -1811,6 +1820,7 @@ send_start_migrate(struct vmctx *ctx, const char *migrate_vm)
 
 	return (rc);
 }
+#endif
 
 int
 main(int argc, char *argv[])
@@ -1828,7 +1838,9 @@ main(int argc, char *argv[])
 	uint64_t cs, ds, es, fs, gs, ss, tr, ldtr;
 	struct tm tm;
 	struct option *opts;
+#ifdef BHYVE_SNAPSHOT
 	char *checkpoint_file, *suspend_file, *migrate_host;
+#endif
 
 	cpu_intel = cpu_vendor_intel();
 	opts = setup_options(cpu_intel);
@@ -1995,6 +2007,7 @@ main(int argc, char *argv[])
 		case ASSERT_LAPIC_LVT:
 			assert_lapic_lvt = atoi(optarg);
 			break;
+#ifdef BHYVE_SNAPSHOT
 		case SET_CHECKPOINT_FILE:
 			vm_checkpoint_opt = 1;
 			checkpoint_file = optarg;
@@ -2007,6 +2020,7 @@ main(int argc, char *argv[])
 			vm_migrate = 1;
 			migrate_host = optarg;
 			break;
+#endif
 		default:
 			usage(cpu_intel);
 		}
@@ -2492,6 +2506,7 @@ main(int argc, char *argv[])
 	if (!error && destroy)
 		vm_destroy(ctx);
 
+#ifdef BHYVE_SNAPSHOT
 	if (!error && vm_checkpoint_opt)
 		error = send_start_checkpoint(ctx, checkpoint_file);
 
@@ -2500,6 +2515,8 @@ main(int argc, char *argv[])
 
 	if (!error && vm_migrate)
 		error = send_start_migrate(ctx, migrate_host);
+#endif
+
 	free (opts);
 	exit(error);
 }
