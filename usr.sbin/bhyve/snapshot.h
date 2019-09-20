@@ -50,7 +50,7 @@ const struct vm_snapshot_kern_info *get_snapshot_kern_structs(int *ndevs);
 
 void destroy_restore_state(struct restore_state *rstate);
 
-const char * lookup_vmname(struct restore_state *rstate);
+const char *lookup_vmname(struct restore_state *rstate);
 int lookup_memflags(struct restore_state *rstate);
 size_t lookup_memsize(struct restore_state *rstate);
 int lookup_guest_ncpus(struct restore_state *rstate);
