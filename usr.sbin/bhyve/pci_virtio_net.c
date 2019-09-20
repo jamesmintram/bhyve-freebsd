@@ -40,6 +40,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <machine/atomic.h>
+#include <machine/vmm_snapshot.h>
 #include <net/ethernet.h>
 #ifndef NETMAP_WITH_LIBS
 #define NETMAP_WITH_LIBS
@@ -49,7 +50,6 @@ __FBSDID("$FreeBSD$");
 #ifndef WITHOUT_CAPSICUM
 #include <capsicum_helpers.h>
 #endif
-#include <machine/vmm_snapshot.h>
 
 #include <err.h>
 #include <errno.h>
@@ -174,13 +174,15 @@ struct pci_vtnet_softc {
 };
 
 static void pci_vtnet_reset(void *);
-static void pci_vtnet_pause(void *);
-static void pci_vtnet_resume(void *);
-static int pci_vtnet_snapshot(void *, struct vm_snapshot_meta *);
 /* static void pci_vtnet_notify(void *, struct vqueue_info *); */
 static int pci_vtnet_cfgread(void *, int, int, uint32_t *);
 static int pci_vtnet_cfgwrite(void *, int, int, uint32_t);
 static void pci_vtnet_neg_features(void *, uint64_t);
+#ifdef BHYVE_SNAPSHOT
+static void pci_vtnet_pause(void *);
+static void pci_vtnet_resume(void *);
+static int pci_vtnet_snapshot(void *, struct vm_snapshot_meta *);
+#endif
 
 static struct virtio_consts vtnet_vi_consts = {
 	"vtnet",		/* our name */
@@ -192,9 +194,11 @@ static struct virtio_consts vtnet_vi_consts = {
 	pci_vtnet_cfgwrite,	/* write PCI config */
 	pci_vtnet_neg_features,	/* apply negotiated features */
 	VTNET_S_HOSTCAPS,	/* our capabilities */
+#ifdef BHYVE_SNAPSHOT
 	pci_vtnet_pause,	/* pause rx/tx threads */
 	pci_vtnet_resume,	/* resume rx/tx threads */
 	pci_vtnet_snapshot,	/* save / restore device state */
+#endif
 };
 
 /*
@@ -255,6 +259,7 @@ pci_vtnet_reset(void *vsc)
 	sc->resetting = 0;
 }
 
+#ifdef BHYVE_SNAPSHOT
 static void
 pci_vtnet_pause(void *vsc)
 {
@@ -313,6 +318,7 @@ pci_vtnet_snapshot(void *vsc, struct vm_snapshot_meta *meta)
 done:
 	return (ret);
 }
+#endif
 
 /*
  * Called to send a buffer chain out to the tap device
@@ -1058,6 +1064,8 @@ struct pci_devemu pci_de_vnet = {
 	.pe_init =	pci_vtnet_init,
 	.pe_barwrite =	vi_pci_write,
 	.pe_barread =	vi_pci_read,
+#ifdef BHYVE_SNAPSHOT
 	.pe_snapshot =	vi_pci_snapshot,
+#endif
 };
 PCI_EMUL_SET(pci_de_vnet);
