@@ -808,6 +808,7 @@ done:
 		pthread_mutex_unlock(vs->vs_mtx);
 }
 
+#ifdef BHYVE_SNAPSHOT
 int
 vi_pci_pause(struct pci_devinst *pi)
 {
@@ -951,3 +952,4 @@ vi_pci_snapshot(struct vm_snapshot_meta *meta)
 done:
 	return (ret);
 }
+#endif

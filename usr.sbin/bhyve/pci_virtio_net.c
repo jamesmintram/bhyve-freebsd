@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmm_snapshot.h>
 #include <net/ethernet.h>
 #include <net/if.h> /* IFNAMSIZ */
+
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -125,13 +126,15 @@ struct pci_vtnet_softc {
 };
 
 static void pci_vtnet_reset(void *);
-static void pci_vtnet_pause(void *);
-static void pci_vtnet_resume(void *);
-static int pci_vtnet_snapshot(void *, struct vm_snapshot_meta *);
 /* static void pci_vtnet_notify(void *, struct vqueue_info *); */
 static int pci_vtnet_cfgread(void *, int, int, uint32_t *);
 static int pci_vtnet_cfgwrite(void *, int, int, uint32_t);
 static void pci_vtnet_neg_features(void *, uint64_t);
+#ifdef BHYVE_SNAPSHOT
+static void pci_vtnet_pause(void *);
+static void pci_vtnet_resume(void *);
+static int pci_vtnet_snapshot(void *, struct vm_snapshot_meta *);
+#endif
 
 static struct virtio_consts vtnet_vi_consts = {
 	"vtnet",		/* our name */
@@ -143,9 +146,11 @@ static struct virtio_consts vtnet_vi_consts = {
 	pci_vtnet_cfgwrite,	/* write PCI config */
 	pci_vtnet_neg_features,	/* apply negotiated features */
 	VTNET_S_HOSTCAPS,	/* our capabilities */
+#ifdef BHYVE_SNAPSHOT
 	pci_vtnet_pause,	/* pause rx/tx threads */
 	pci_vtnet_resume,	/* resume rx/tx threads */
 	pci_vtnet_snapshot,	/* save / restore device state */
+#endif
 };
 
 static void
@@ -240,6 +245,7 @@ struct virtio_mrg_rxbuf_info {
 	uint32_t len;
 };
 
+#ifdef BHYVE_SNAPSHOT
 static void
 pci_vtnet_pause(void *vsc)
 {
@@ -296,6 +302,7 @@ pci_vtnet_snapshot(void *vsc, struct vm_snapshot_meta *meta)
 done:
 	return (ret);
 }
+#endif
 
 static void
 pci_vtnet_rx(struct pci_vtnet_softc *sc)
@@ -791,6 +798,8 @@ static struct pci_devemu pci_de_vnet = {
 	.pe_init =	pci_vtnet_init,
 	.pe_barwrite =	vi_pci_write,
 	.pe_barread =	vi_pci_read,
+#ifdef BHYVE_SNAPSHOT
 	.pe_snapshot =	vi_pci_snapshot,
+#endif
 };
 PCI_EMUL_SET(pci_de_vnet);

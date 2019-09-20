@@ -419,6 +419,7 @@ ps2mouse_init(struct atkbdc_softc *atkbdc_sc)
 	return (sc);
 }
 
+#ifdef BHYVE_SNAPSHOT
 int
 ps2mouse_snapshot(struct ps2mouse_softc *sc, struct vm_snapshot_meta *meta)
 {
@@ -437,3 +438,4 @@ ps2mouse_snapshot(struct ps2mouse_softc *sc, struct vm_snapshot_meta *meta)
 done:
 	return (ret);
 }
+#endif
