@@ -810,7 +810,7 @@ done:
 
 #ifdef BHYVE_SNAPSHOT
 int
-vi_pci_pause(struct pci_devinst *pi)
+vi_pci_pause(struct vmctx *ctx, struct pci_devinst *pi)
 {
 	struct virtio_softc *vs;
 	struct virtio_consts *vc;
@@ -826,7 +826,7 @@ vi_pci_pause(struct pci_devinst *pi)
 }
 
 int
-vi_pci_resume(struct pci_devinst *pi)
+vi_pci_resume(struct vmctx *ctx, struct pci_devinst *pi)
 {
 	struct virtio_softc *vs;
 	struct virtio_consts *vc;
