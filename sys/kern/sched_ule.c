@@ -2003,6 +2003,7 @@ static struct mtx *
 sched_switch_migrate(struct tdq *tdq, struct thread *td, int flags)
 {
 	struct tdq *tdn;
+	struct mtx *mtx;
 
 	KASSERT(THREAD_CAN_MIGRATE(td) ||
 	    (td_get_sched(td)->ts_flags & TSF_BOUND) != 0,
@@ -2014,9 +2015,21 @@ sched_switch_migrate(struct tdq *tdq, struct thread *td, int flags)
 #ifdef SMP
 	tdq_load_rem(tdq, td);
 	/*
-	 * Do the lock dance required to avoid LOR.  We have an 
-	 * extra spinlock nesting from sched_switch() which will
-	 * prevent preemption while we're holding neither run-queue lock.
+	 * Do the lock dance required to avoid LOR.  We grab an extra
+	 * spinlock nesting to prevent preemption while we're
+	 * not holding either run-queue lock.
+	 */
+	spinlock_enter();
+	mtx = thread_lock_block(td);
+	mtx_unlock_spin(mtx);
+
+	/*
+	 * Acquire both run-queue locks before placing the thread on the new
+	 * run-queue to avoid deadlocks created by placing a thread with a
+	 * blocked lock on the run-queue of a remote processor.  The deadlock
+	 * occurs when a third processor attempts to lock the two queues in
+	 * question while the target processor is spinning with its own
+	 * run-queue lock held while waiting for the blocked lock to clear.
 	 */
 	TDQ_UNLOCK(tdq);
 	TDQ_LOCK(tdn);
@@ -2093,9 +2106,12 @@ sched_switch(struct thread *td, int flags)
 			mtx = sched_switch_migrate(tdq, td, srqflag);
 	} else {
 		/* This thread must be going to sleep. */
+		mtx = thread_lock_block(td);
 		if (mtx != TDQ_LOCKPTR(tdq)) {
+			spinlock_enter();
 			mtx_unlock_spin(mtx);
 			TDQ_LOCK(tdq);
+			spinlock_exit();
 		}
 		tdq_load_rem(tdq, td);
 #ifdef SMP
@@ -2906,6 +2922,7 @@ sched_throw(struct thread *td)
 		PCPU_SET(switchticks, ticks);
 		PCPU_GET(idlethread)->td_lock = TDQ_LOCKPTR(tdq);
 	} else {
+		THREAD_LOCK_ASSERT(td, MA_OWNED);
 		tdq = TDQ_SELF();
 		THREAD_LOCK_ASSERT(td, MA_OWNED);
 		THREAD_LOCKPTR_ASSERT(td, TDQ_LOCKPTR(tdq));

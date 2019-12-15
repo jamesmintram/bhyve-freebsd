@@ -173,7 +173,7 @@ static int	sleepq_init(void *mem, int size, int flags);
 static int	sleepq_resume_thread(struct sleepqueue *sq, struct thread *td,
 		    int pri, int srqflags);
 static void	sleepq_remove_thread(struct sleepqueue *sq, struct thread *td);
-static void	sleepq_switch(const void *wchan, int pri);
+static void	sleepq_switch(void *wchan, int pri);
 static void	sleepq_timeout(void *arg);
 
 SDT_PROBE_DECLARE(sched, , , sleep);
@@ -1031,7 +1031,7 @@ sleepq_timeout(void *arg)
 	    (void *)td, (long)td->td_proc->p_pid, (void *)td->td_name);
 
 	thread_lock(td);
-	if (td->td_sleeptimo == 0 || td->td_sleeptimo > sbinuptime()) {
+	if (td->td_sleeptimo > sbinuptime() || td->td_sleeptimo == 0) {
 		/*
 		 * The thread does not want a timeout (yet).
 		 */
@@ -1130,6 +1130,7 @@ sleepq_abort(struct thread *td, int intrval)
 	CTR3(KTR_PROC, "sleepq_abort: thread %p (pid %ld, %s)",
 	    (void *)td, (long)td->td_proc->p_pid, (void *)td->td_name);
 	td->td_intrval = intrval;
+	td->td_flags |= TDF_SLEEPABORT;
 
 	/*
 	 * If the thread has not slept yet it will find the signal in
