@@ -330,6 +330,8 @@ int
 elf_cpu_parse_dynamic(linker_file_t lf __unused, Elf_Dyn *dynamic __unused)
 {
 
+	/* Inform the stack(9) code that this module is gone. */
+	unwind_module_unloaded(lf);
 	return (0);
 }
 
