@@ -684,6 +684,7 @@ sleepq_wait_sig(const void *wchan, int pri)
 	int rcatch;
 
 	rcatch = sleepq_catch_signals(wchan, pri);
+	thread_unlock(curthread);
 	if (rcatch)
 		return (rcatch);
 	return (sleepq_check_signals());
@@ -703,6 +704,7 @@ sleepq_timedwait(const void *wchan, int pri)
 
 	thread_lock(td);
 	sleepq_switch(wchan, pri);
+	thread_unlock(td);
 
 	return (sleepq_check_timeout());
 }
@@ -717,6 +719,8 @@ sleepq_timedwait_sig(const void *wchan, int pri)
 	int rcatch, rvalt, rvals;
 
 	rcatch = sleepq_catch_signals(wchan, pri);
+	thread_unlock(curthread);
+
 	/* We must always call check_timeout() to clear sleeptimo. */
 	rvalt = sleepq_check_timeout();
 	rvals = sleepq_check_signals();
@@ -1031,7 +1035,7 @@ sleepq_timeout(void *arg)
 	    (void *)td, (long)td->td_proc->p_pid, (void *)td->td_name);
 
 	thread_lock(td);
-	if (td->td_sleeptimo > sbinuptime() || td->td_sleeptimo == 0) {
+	if (td->td_sleeptimo == 0 || td->td_sleeptimo > sbinuptime()) {
 		/*
 		 * The thread does not want a timeout (yet).
 		 */
@@ -1130,7 +1134,6 @@ sleepq_abort(struct thread *td, int intrval)
 	CTR3(KTR_PROC, "sleepq_abort: thread %p (pid %ld, %s)",
 	    (void *)td, (long)td->td_proc->p_pid, (void *)td->td_name);
 	td->td_intrval = intrval;
-	td->td_flags |= TDF_SLEEPABORT;
 
 	/*
 	 * If the thread has not slept yet it will find the signal in
