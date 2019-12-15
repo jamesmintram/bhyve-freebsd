@@ -2003,7 +2003,6 @@ static struct mtx *
 sched_switch_migrate(struct tdq *tdq, struct thread *td, int flags)
 {
 	struct tdq *tdn;
-	struct mtx *mtx;
 
 	KASSERT(THREAD_CAN_MIGRATE(td) ||
 	    (td_get_sched(td)->ts_flags & TSF_BOUND) != 0,
@@ -2907,7 +2906,6 @@ sched_throw(struct thread *td)
 		PCPU_SET(switchticks, ticks);
 		PCPU_GET(idlethread)->td_lock = TDQ_LOCKPTR(tdq);
 	} else {
-		THREAD_LOCK_ASSERT(td, MA_OWNED);
 		tdq = TDQ_SELF();
 		THREAD_LOCK_ASSERT(td, MA_OWNED);
 		THREAD_LOCKPTR_ASSERT(td, TDQ_LOCKPTR(tdq));
