@@ -1028,25 +1028,7 @@ sched_switch(struct thread *td, int flags)
 	if ((td->td_flags & TDF_NOLOAD) == 0)
 		sched_load_rem();
 
-	if (newtd) {
-		/*
-		 * The thread we are about to run needs to be counted
-		 * as if it had been added to the run queue and selected.
-		 * It came from:
-		 * * A preemption
-		 * * An upcall
-		 * * A followon
-		 */
-		KASSERT((newtd->td_inhibitors == 0),
-			("trying to run inhibited thread"));
-		newtd->td_flags |= TDF_DIDRUN;
-        	TD_SET_RUNNING(newtd);
-		if ((newtd->td_flags & TDF_NOLOAD) == 0)
-			sched_load_add();
-	} else {
-		newtd = choosethread();
-	}
-
+	newtd = choosethread();
 	MPASS(newtd->td_lock == &sched_lock);
 
 #if (KTR_COMPILE & KTR_SCHED) != 0

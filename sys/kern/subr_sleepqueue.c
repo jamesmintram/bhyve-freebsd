@@ -684,7 +684,6 @@ sleepq_wait_sig(const void *wchan, int pri)
 	int rcatch;
 
 	rcatch = sleepq_catch_signals(wchan, pri);
-	thread_unlock(curthread);
 	if (rcatch)
 		return (rcatch);
 	return (sleepq_check_signals());
@@ -704,7 +703,6 @@ sleepq_timedwait(const void *wchan, int pri)
 
 	thread_lock(td);
 	sleepq_switch(wchan, pri);
-	thread_unlock(td);
 
 	return (sleepq_check_timeout());
 }
@@ -719,8 +717,6 @@ sleepq_timedwait_sig(const void *wchan, int pri)
 	int rcatch, rvalt, rvals;
 
 	rcatch = sleepq_catch_signals(wchan, pri);
-	thread_unlock(curthread);
-
 	/* We must always call check_timeout() to clear sleeptimo. */
 	rvalt = sleepq_check_timeout();
 	rvals = sleepq_check_signals();
