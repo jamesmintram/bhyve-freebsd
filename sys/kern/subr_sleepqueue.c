@@ -173,7 +173,7 @@ static int	sleepq_init(void *mem, int size, int flags);
 static int	sleepq_resume_thread(struct sleepqueue *sq, struct thread *td,
 		    int pri, int srqflags);
 static void	sleepq_remove_thread(struct sleepqueue *sq, struct thread *td);
-static void	sleepq_switch(void *wchan, int pri);
+static void	sleepq_switch(const void *wchan, int pri);
 static void	sleepq_timeout(void *arg);
 
 SDT_PROBE_DECLARE(sched, , , sleep);
