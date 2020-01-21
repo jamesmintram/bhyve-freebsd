@@ -92,7 +92,9 @@ __FBSDID("$FreeBSD$");
 #include "ioapic.h"
 #include "mem.h"
 #include "mevent.h"
+#ifdef BHYVE_SNAPSHOT
 #include "migration.h"
+#endif
 #include "mptbl.h"
 #include "pci_emul.h"
 #include "pci_irq.h"
