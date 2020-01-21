@@ -371,8 +371,6 @@ migrate_recv_memory(struct vmctx *ctx, int socket)
 	size_t remote_lowmem_size = 0, remote_highmem_size = 0;
 	char *baseaddr;
 	int memsize_ok;
-	char *buffer;
-	size_t i, chunks, chunk_size = 4 * MB;
 	int rc = 0;
 
 	rc = vm_get_guestmem_from_ctx(ctx,
@@ -426,30 +424,13 @@ migrate_recv_memory(struct vmctx *ctx, int socket)
 		return (-1);
 	}
 
-	buffer = malloc(chunk_size * sizeof(char));
-	if (buffer == NULL) {
+	// recv lowmem
+	rc = migration_recv_data_from_remote(socket, baseaddr, local_lowmem_size);
+	if (rc < 0) {
 		fprintf(stderr,
-			"%s: Could not allocate memory\r\n",
+			"%s: Could not recv chunk lowmem.\r\n",
 			__func__);
 		return (-1);
-	}
-
-	// recv lowmem
-	chunks = local_lowmem_size / chunk_size;
-
-	for (i = 0 ; i < chunks; i++) {
-		memset(buffer, 0, chunk_size);
-
-		rc = migration_recv_data_from_remote(socket, buffer, chunk_size);
-		if (rc < 0) {
-			fprintf(stderr,
-				"%s: Could not recv chunk %lu\r\n",
-				__func__,
-				i);
-			return (-1);
-		}
-
-		memcpy(baseaddr + i * chunk_size, buffer, chunk_size);
 	}
 
 	// recv highmem
@@ -475,9 +456,6 @@ migrate_send_memory(struct vmctx *ctx, int socket)
 	char *mmap_vm_lowmem = MAP_FAILED;
 	char *mmap_vm_highmem = MAP_FAILED;
 	char *baseaddr;
-	char *buffer;
-	size_t chunks, i;
-	size_t chunk_size = 4 * MB;
 	int memsize_ok;
 	int rc = 0;
 
@@ -528,28 +506,12 @@ migrate_send_memory(struct vmctx *ctx, int socket)
 	mmap_vm_highmem = baseaddr + 4 * GB;
 
 	// send lowmem
-	chunks = lowmem_size / chunk_size;
-
-	buffer = malloc(chunk_size * sizeof(char));
-	if (buffer == NULL) {
+	rc = migration_send_data_remote(socket, mmap_vm_lowmem, lowmem_size);
+	if (rc < 0) {
 		fprintf(stderr,
-			"%s: Could not allocate memory\r\n",
+			"%s: Could not send lowmem\r\n",
 			__func__);
 		return (-1);
-	}
-
-	for (i = 0 ; i < chunks; i++) {
-		memset(buffer, 0, chunk_size);
-		memcpy(buffer, mmap_vm_lowmem + i * chunk_size, chunk_size);
-
-		rc = migration_send_data_remote(socket, buffer, chunk_size);
-		if (rc < 0) {
-			fprintf(stderr,
-				"%s: Could not send chunk %lu\r\n",
-				__func__,
-				i);
-			return (-1);
-		}
 	}
 
 	// send highmem
