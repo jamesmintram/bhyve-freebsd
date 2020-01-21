@@ -1323,19 +1323,7 @@ main(int argc, char *argv[])
 			exit(1);
 		}
 	}
-#endif
 
-	error = vm_get_register(ctx, BSP, VM_REG_GUEST_RIP, &rip);
-	assert(error == 0);
-
-	/*
-	 * checkpointing thread for communication with bhyvectl
-	 */
-	if (init_checkpoint_thread(ctx) < 0)
-		printf("Failed to start checkpoint thread!\r\n");
-
-
-#ifdef BHYVE_SNAPSHOT
 	if (receive_migration != NULL) {
 		if (vm_pause_user_devs(ctx) != 0) {
 			fprintf(stderr, "Failed to pause PCI device state.\n");
@@ -1354,6 +1342,15 @@ main(int argc, char *argv[])
 		}
 	}
 #endif
+
+	error = vm_get_register(ctx, BSP, VM_REG_GUEST_RIP, &rip);
+	assert(error == 0);
+
+	/*
+	 * checkpointing thread for communication with bhyvectl
+	 */
+	if (init_checkpoint_thread(ctx) < 0)
+		printf("Failed to start checkpoint thread!\r\n");
 
 	/*
 	 * build the guest tables, MP etc.
