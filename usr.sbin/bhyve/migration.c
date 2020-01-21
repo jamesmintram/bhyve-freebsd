@@ -1082,14 +1082,14 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req)
 		goto done;
 	}
 
+	vm_vcpu_pause(ctx);
+
 	rc = vm_pause_user_devs(ctx);
 	if (rc != 0) {
 		fprintf(stderr, "Could not pause devices\r\n");
 		error = rc;
-		goto done;
+		goto unlock_vm_and_exit;
 	}
-
-	vm_vcpu_pause(ctx);
 
 	rc = migrate_send_memory(ctx, s);
 	if (rc != 0) {
@@ -1133,30 +1133,16 @@ vm_send_migrate_req(struct vmctx *ctx, struct migrate_req req)
 	}
 
 	// Poweroff the vm
-	vm_vcpu_resume(ctx);
-
-	rc = vm_suspend(ctx, VM_SUSPEND_POWEROFF);
-	if (rc != 0) {
-		fprintf(stderr, "Failed to suspend vm\n");
-	}
-
-	rc = vm_resume_user_devs(ctx);
-	if (rc != 0)
-		fprintf(stderr, "Could not resume devices\r\n");
-
 	vm_destroy(ctx);
 	exit(0);
 
-	error = 0;
-	goto done;
-
 unlock_vm_and_exit:
 	vm_vcpu_resume(ctx);
-done:
 
 	rc = vm_resume_user_devs(ctx);
 	if (rc != 0)
 		fprintf(stderr, "Could not resume devices\r\n");
+done:
 	close(s);
 	return (error);
 }
