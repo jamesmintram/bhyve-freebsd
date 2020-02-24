@@ -890,6 +890,7 @@ vi_pci_snapshot_queues(struct virtio_softc *vs, struct vm_snapshot_meta *meta)
 
 		SNAPSHOT_VAR_OR_LEAVE(vq->vq_flags, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(vq->vq_last_avail, meta, ret, done);
+		SNAPSHOT_VAR_OR_LEAVE(vq->vq_next_used, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(vq->vq_save_used, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(vq->vq_msix_idx, meta, ret, done);
 

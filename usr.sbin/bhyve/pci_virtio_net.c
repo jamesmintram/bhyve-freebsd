@@ -285,9 +285,7 @@ pci_vtnet_snapshot(void *vsc, struct vm_snapshot_meta *meta)
 		pci_vtnet_neg_features(sc, sc->vsc_features);
 
 	SNAPSHOT_VAR_OR_LEAVE(sc->vsc_config, meta, ret, done);
-	SNAPSHOT_VAR_OR_LEAVE(sc->rx_vhdrlen, meta, ret, done);
 	SNAPSHOT_VAR_OR_LEAVE(sc->rx_merge, meta, ret, done);
-	SNAPSHOT_VAR_OR_LEAVE(sc->vsc_rx_ready, meta, ret, done);
 
 done:
 	return (ret);
