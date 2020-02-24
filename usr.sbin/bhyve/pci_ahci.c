@@ -2629,7 +2629,6 @@ pci_ahci_snapshot(struct vm_snapshot_meta *meta)
 		SNAPSHOT_VAR_OR_LEAVE(port->clbu, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(port->fb, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(port->fbu, meta, ret, done);
-		SNAPSHOT_VAR_OR_LEAVE(port->is, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(port->ie, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(port->cmd, meta, ret, done);
 		SNAPSHOT_VAR_OR_LEAVE(port->unused0, meta, ret, done);
