@@ -819,7 +819,6 @@ vmexit_debug(struct vmctx *ctx, struct vm_exit *vmexit, int *pvcpu)
 #endif
 	if (gdb_port != 0)
 		gdb_cpu_suspend(*pvcpu);
-	gdb_cpu_suspend(*pvcpu);
 #ifdef BHYVE_SNAPSHOT
 	checkpoint_cpu_resume(*pvcpu);
 #endif
