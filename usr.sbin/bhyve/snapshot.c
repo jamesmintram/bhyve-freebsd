@@ -61,6 +61,7 @@ __FBSDID("$FreeBSD$");
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <signal.h>
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
@@ -68,6 +69,7 @@ __FBSDID("$FreeBSD$");
 #include <pthread_np.h>
 #include <sysexits.h>
 #include <stdbool.h>
+#include <sys/ioctl.h>
 
 #include <machine/vmm.h>
 #ifndef WITHOUT_CAPSICUM
@@ -98,30 +100,49 @@ __FBSDID("$FreeBSD$");
 #include <libxo/xo.h>
 #include <ucl.h>
 
+struct spinner_info {
+	const size_t *crtval;
+	const size_t maxval;
+};
+
 extern int guest_ncpus;
 
-#define MB		(1024UL * 1024)
-#define GB		(1024UL * MB)
+static struct winsize winsize;
+static sig_t old_winch_handler;
 
-#define BHYVE_RUN_DIR "/var/run/bhyve"
-#define CHECKPOINT_RUN_DIR BHYVE_RUN_DIR "/checkpoint"
-#define MAX_VMNAME 100
+#define	KB		(1024UL)
+#define	MB		(1024UL * KB)
+#define	GB		(1024UL * MB)
 
-#define MAX_MSG_SIZE 1024
+#define	SNAPSHOT_CHUNK	(4 * MB)
+#define	PROG_BUF_SZ	(8192)
 
-#define SNAPSHOT_BUFFER_SIZE (20 * MB)
+#define	BHYVE_RUN_DIR "/var/run/bhyve"
+#define	CHECKPOINT_RUN_DIR BHYVE_RUN_DIR "/checkpoint"
+#define	MAX_VMNAME 100
 
-#define JSON_STRUCT_ARR_KEY		"structs"
-#define JSON_DEV_ARR_KEY		"devices"
-#define JSON_BASIC_METADATA_KEY 	"basic metadata"
-#define JSON_SNAPSHOT_REQ_KEY		"snapshot_req"
-#define JSON_SIZE_KEY			"size"
-#define JSON_FILE_OFFSET_KEY		"file_offset"
+#define	MAX_MSG_SIZE 1024
 
-#define JSON_NCPUS_KEY			"ncpus"
-#define JSON_VMNAME_KEY 		"vmname"
-#define JSON_MEMSIZE_KEY		"memsize"
-#define JSON_MEMFLAGS_KEY		"memflags"
+#define	SNAPSHOT_BUFFER_SIZE (20 * MB)
+
+#define	JSON_STRUCT_ARR_KEY		"structs"
+#define	JSON_DEV_ARR_KEY		"devices"
+#define	JSON_BASIC_METADATA_KEY 	"basic metadata"
+#define	JSON_SNAPSHOT_REQ_KEY		"snapshot_req"
+#define	JSON_SIZE_KEY			"size"
+#define	JSON_FILE_OFFSET_KEY		"file_offset"
+
+#define	JSON_NCPUS_KEY			"ncpus"
+#define	JSON_VMNAME_KEY 		"vmname"
+#define	JSON_MEMSIZE_KEY		"memsize"
+#define	JSON_MEMFLAGS_KEY		"memflags"
+
+#define min(a,b)		\
+({				\
+ __typeof__ (a) _a = (a);	\
+ __typeof__ (b) _b = (b); 	\
+ _a < _b ? _a : _b;       	\
+ })
 
 const struct vm_snapshot_dev_info snapshot_devs[] = {
 	{ "atkbdc",	atkbdc_snapshot,	NULL,		NULL		},
@@ -584,10 +605,262 @@ lookup_guest_ncpus(struct restore_state *rstate)
 	return ((int)ncpus);
 }
 
+static void
+winch_handler(int signal)
+{
+#ifdef TIOCGWINSZ
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize);
+#endif /* TIOCGWINSZ */
+}
+
+static int
+print_progress(size_t crtval, const size_t maxval)
+{
+	size_t rc;
+	double crtval_gb, maxval_gb;
+	size_t i, win_width, prog_start, prog_done, prog_end;
+	int mval_len;
+
+	static char prog_buf[PROG_BUF_SZ];
+	static const size_t len = sizeof(prog_buf);
+
+	static size_t div;
+	static char *div_str;
+
+	static char wip_bar[] = { '/', '-', '\\', '|' };
+	static int wip_idx = 0;
+
+	if (maxval == 0) {
+		printf("[0B / 0B]\r\n");
+		return (0);
+	}
+
+	if (crtval > maxval)
+		crtval = maxval;
+
+	if (maxval > 10 * GB) {
+		div = GB;
+		div_str = "GiB";
+	} else if (maxval > 10 * MB) {
+		div = MB;
+		div_str = "MiB";
+	} else {
+		div = KB;
+		div_str = "KiB";
+	}
+
+	crtval_gb = (double) crtval / div;
+	maxval_gb = (double) maxval / div;
+
+	rc = snprintf(prog_buf, len, "%.03lf", maxval_gb);
+	if (rc == len) {
+		fprintf(stderr, "Maxval too big\n");
+		return (-1);
+	}
+	mval_len = rc;
+
+	rc = snprintf(prog_buf, len, "\r[%*.03lf%s / %.03lf%s] |",
+		mval_len, crtval_gb, div_str, maxval_gb, div_str);
+
+	if (rc == len) {
+		fprintf(stderr, "Buffer too small to print progress\n");
+		return (-1);
+	}
+
+	win_width = min(winsize.ws_col, len);
+	prog_start = rc;
+
+	if (prog_start < (win_width - 2)) {
+		prog_end = win_width - prog_start - 2;
+		prog_done = prog_end * (crtval_gb / maxval_gb);
+
+		for (i = prog_start; i < prog_start + prog_done; i++)
+			prog_buf[i] = '#';
+
+		if (crtval != maxval) {
+			prog_buf[i] = wip_bar[wip_idx];
+			wip_idx = (wip_idx + 1) % sizeof(wip_bar);
+			i++;
+		} else {
+			prog_buf[i++] = '#';
+		}
+
+		for (; i < win_width - 2; i++)
+			prog_buf[i] = '_';
+
+		prog_buf[win_width - 2] = '|';
+	}
+
+	prog_buf[win_width - 1] = '\0';
+	write(STDOUT_FILENO, prog_buf, win_width);
+
+	return (0);
+}
+
+static void *
+snapshot_spinner_cb(void *arg)
+{
+	int rc;
+	size_t crtval, maxval;
+	struct spinner_info *si;
+	struct timespec ts;
+
+	si = arg;
+	if (si == NULL)
+		pthread_exit(NULL);
+
+	ts.tv_sec = 0;
+	ts.tv_nsec = 50 * 1000 * 1000; /* 50 ms sleep time */
+
+	do {
+		crtval = *si->crtval;
+		maxval = si->maxval;
+
+		rc = print_progress(crtval, maxval);
+		if (rc < 0) {
+			fprintf(stderr, "Failed to parse progress\n");
+			break;
+		}
+
+		nanosleep(&ts, NULL);
+	} while (crtval < maxval);
+
+	pthread_exit(NULL);
+	return NULL;
+}
+
+static int
+vm_snapshot_mem_part(const int snapfd, const size_t foff, void *src,
+		     const size_t len, const size_t totalmem, const bool op_wr)
+{
+	int rc;
+	size_t part_done, todo, rem;
+	ssize_t done;
+	bool show_progress;
+	pthread_t spinner_th;
+	struct spinner_info *si;
+
+	if (lseek(snapfd, foff, SEEK_SET) < 0) {
+		perror("Failed to change file offset");
+		return (-1);
+	}
+
+	show_progress = false;
+	if (isatty(STDIN_FILENO) && (winsize.ws_col != 0))
+		show_progress = true;
+
+	part_done = foff;
+	rem = len;
+
+	if (show_progress) {
+		si = &(struct spinner_info) {
+			.crtval = &part_done,
+			.maxval = totalmem
+		};
+
+		rc = pthread_create(&spinner_th, 0, snapshot_spinner_cb, si);
+		if (rc) {
+			perror("Unable to create spinner thread");
+			show_progress = false;
+		}
+	}
+
+	while (rem > 0) {
+		if (show_progress)
+			todo = min(SNAPSHOT_CHUNK, rem);
+		else
+			todo = rem;
+
+		if (op_wr)
+			done = write(snapfd, src, todo);
+		else
+			done = read(snapfd, src, todo);
+		if (done < 0) {
+			perror("Failed to write in file");
+			return (-1);
+		}
+
+		src += done;
+		part_done += done;
+		rem -= done;
+	}
+
+	if (show_progress) {
+		rc = pthread_join(spinner_th, NULL);
+		if (rc)
+			perror("Unable to end spinner thread");
+	}
+
+	return (0);
+}
+
+static size_t
+vm_snapshot_mem(struct vmctx *ctx, int snapfd, size_t memsz, const bool op_wr)
+{
+	int ret;
+	size_t lowmem, highmem, totalmem;
+	char *baseaddr;
+
+	ret = vm_get_guestmem_from_ctx(ctx, &baseaddr, &lowmem, &highmem);
+	if (ret) {
+		fprintf(stderr, "%s: unable to retrieve guest memory size\r\n",
+			__func__);
+		return (0);
+	}
+	totalmem = lowmem + highmem;
+
+	if ((op_wr == false) && (totalmem != memsz)) {
+		fprintf(stderr, "%s: mem size mismatch: %ld vs %ld\r\n",
+			__func__, totalmem, memsz);
+		return (0);
+	}
+
+	winsize.ws_col = 80;
+#ifdef TIOCGWINSZ
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize);
+#endif /* TIOCGWINSZ */
+	old_winch_handler = signal(SIGWINCH, winch_handler);
+
+	ret = vm_snapshot_mem_part(snapfd, 0, baseaddr, lowmem,
+		totalmem, op_wr);
+	if (ret) {
+		fprintf(stderr, "%s: Could not %s lowmem\r\n",
+			__func__, op_wr ? "write" : "read");
+		totalmem = 0;
+		goto done;
+	}
+
+	if (highmem == 0)
+		goto done;
+
+	ret = vm_snapshot_mem_part(snapfd, lowmem, baseaddr + 4*GB,
+		highmem, totalmem, op_wr);
+	if (ret) {
+		fprintf(stderr, "%s: Could not %s highmem\r\n",
+		        __func__, op_wr ? "write" : "read");
+		totalmem = 0;
+		goto done;
+	}
+
+done:
+	printf("\r\n");
+	signal(SIGWINCH, old_winch_handler);
+
+	return (totalmem);
+}
+
 int
 restore_vm_mem(struct vmctx *ctx, struct restore_state *rstate)
 {
-	return vm_restore_mem(ctx, rstate->vmmem_fd, rstate->vmmem_len);
+	size_t restored;
+
+	restored = vm_snapshot_mem(ctx, rstate->vmmem_fd, rstate->vmmem_len,
+				   false);
+
+	if (restored != rstate->vmmem_len)
+		return (-1);
+
+	return (0);
 }
 
 static int
@@ -850,10 +1123,9 @@ err_vm_snapshot_kern_data:
 }
 
 static int
-vm_snapshot_basic_metadata(struct vmctx *ctx, xo_handle_t *xop)
+vm_snapshot_basic_metadata(struct vmctx *ctx, xo_handle_t *xop, size_t memsz)
 {
 	int error;
-	size_t memsize;
 	int memflags;
 	char vmname_buf[MAX_VMNAME];
 
@@ -864,13 +1136,12 @@ vm_snapshot_basic_metadata(struct vmctx *ctx, xo_handle_t *xop)
 		goto err;
 	}
 
-	memsize = vm_get_lowmem_size(ctx) + vm_get_highmem_size(ctx);
 	memflags = vm_get_memflags(ctx);
 
 	xo_open_container_h(xop, JSON_BASIC_METADATA_KEY);
 	xo_emit_h(xop, "{:" JSON_NCPUS_KEY "/%ld}\n", guest_ncpus);
 	xo_emit_h(xop, "{:" JSON_VMNAME_KEY "/%s}\n", vmname_buf);
-	xo_emit_h(xop, "{:" JSON_MEMSIZE_KEY "/%lu}\n", memsize);
+	xo_emit_h(xop, "{:" JSON_MEMSIZE_KEY "/%lu}\n", memsz);
 	xo_emit_h(xop, "{:" JSON_MEMFLAGS_KEY "/%d}\n", memflags);
 	xo_close_container_h(xop, JSON_BASIC_METADATA_KEY);
 
@@ -984,34 +1255,6 @@ snapshot_err:
 	return (ret);
 }
 
-static int
-vm_mem_write_to_file(int fd, const void *src, size_t dst_offset, size_t len)
-{
-	size_t write_total;
-	ssize_t cnt_write;
-	size_t to_write;
-
-	write_total = 0;
-	to_write = len;
-
-	if (lseek(fd, dst_offset, SEEK_SET) < 0 ) {
-		perror("Failed to changed file offset");
-		return (-1);
-	}
-
-	while (write_total < len) {
-		cnt_write = write(fd, src + write_total, to_write);
-		if (cnt_write < 0) {
-			perror("Failed to write in file");
-			return (-1);
-		}
-		to_write -= cnt_write;
-		write_total += cnt_write;
-	}
-
-	return (0);
-}
-
 void
 checkpoint_cpu_add(int vcpu)
 {
@@ -1089,9 +1332,7 @@ vm_checkpoint(struct vmctx *ctx, char *checkpoint_file, bool stop_vm)
 	int fd_checkpoint = 0, kdata_fd = 0;
 	int ret = 0;
 	int error = 0;
-	size_t guest_lowmem, guest_highmem, guest_memsize;
-	char *guest_baseaddr;
-	char *guest_lowmem_addr, *guest_highmem_addr;
+	size_t memsz;
 	xo_handle_t *xop = NULL;
 	char *meta_filename = NULL;
 	char *kdata_filename = NULL;
@@ -1118,21 +1359,6 @@ vm_checkpoint(struct vmctx *ctx, char *checkpoint_file, bool stop_vm)
 		goto done;
 	}
 
-	ret = vm_get_guestmem_from_ctx(ctx, &guest_baseaddr, &guest_lowmem, &guest_highmem);
-	guest_memsize = guest_lowmem + guest_highmem;
-	if (ret < 0) {
-		fprintf(stderr, "Failed to get guest mem information (base, low, high)\n");
-		error = -1;
-		goto done;
-	}
-
-	/* make space for VMs address space */
-	ret = ftruncate(fd_checkpoint, guest_memsize);
-	if (ret < 0) {
-		perror("Failed to truncate checkpoint file\n");
-		goto done;
-	}
-
 	meta_filename = strcat_extension(checkpoint_file, ".meta");
 	if (meta_filename == NULL) {
 		fprintf(stderr, "Failed to construct vm metadata filename.\n");
@@ -1151,23 +1377,26 @@ vm_checkpoint(struct vmctx *ctx, char *checkpoint_file, bool stop_vm)
 		goto done;
 	}
 
-	ret = vm_snapshot_basic_metadata(ctx, xop);
-	if (ret != 0) {
-		fprintf(stderr, "Failed to snapshot vm basic metadata.\n");
-		error = -1;
-		goto done;
-	}
-
-	guest_lowmem_addr = guest_baseaddr;
-	if (guest_highmem > 0)
-		guest_highmem_addr = guest_baseaddr + 4*GB;
-
 	vm_vcpu_pause(ctx);
 
 	ret = vm_pause_user_devs(ctx);
 	if (ret != 0) {
 		fprintf(stderr, "Could not pause devices\r\n");
 		error = ret;
+		goto done;
+	}
+
+	memsz = vm_snapshot_mem(ctx, fd_checkpoint, 0, true);
+	if (memsz == 0) {
+		perror("Could not write guest memory to file");
+		error = -1;
+		goto done;
+	}
+
+	ret = vm_snapshot_basic_metadata(ctx, xop, memsz);
+	if (ret != 0) {
+		fprintf(stderr, "Failed to snapshot vm basic metadata.\n");
+		error = -1;
 		goto done;
 	}
 
@@ -1184,22 +1413,6 @@ vm_checkpoint(struct vmctx *ctx, char *checkpoint_file, bool stop_vm)
 		fprintf(stderr, "Failed to snapshot device state.\n");
 		error = -1;
 		goto done;
-	}
-
-	if (vm_mem_write_to_file(fd_checkpoint, guest_lowmem_addr,
-				0, guest_lowmem) != 0) {
-		perror("Could not write lowmem");
-		error = -1;
-		goto done;
-	}
-
-	if (guest_highmem > 0) {
-		if (vm_mem_write_to_file(fd_checkpoint, guest_highmem_addr,
-				guest_lowmem, guest_highmem) != 0) {
-			perror("Could not write highmem");
-			error = -1;
-			goto done;
-		}
 	}
 
 	xo_finish_h(xop);

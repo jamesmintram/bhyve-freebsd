@@ -265,6 +265,5 @@ struct checkpoint_op {
 
 int	vm_snapshot_req(struct vm_snapshot_meta *meta);
 int	vm_restore_time(struct vmctx *ctx);
-int	vm_restore_mem(struct vmctx *ctx, int vmmem_fd, size_t size);
 
 #endif	/* _VMMAPI_H_ */
