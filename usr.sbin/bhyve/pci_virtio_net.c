@@ -770,11 +770,16 @@ pci_vtnet_snapshot(void *vsc, struct vm_snapshot_meta *meta)
 	SNAPSHOT_VAR_OR_LEAVE(sc->vsc_features, meta, ret, done);
 
 	/* Force reapply negociated features at restore time */
-	if (meta->op == VM_SNAPSHOT_RESTORE)
+	if (meta->op == VM_SNAPSHOT_RESTORE) {
 		pci_vtnet_neg_features(sc, sc->vsc_features);
+		netbe_rx_enable(sc->vsc_be);
+	}
 
 	SNAPSHOT_VAR_OR_LEAVE(sc->vsc_config, meta, ret, done);
 	SNAPSHOT_VAR_OR_LEAVE(sc->rx_merge, meta, ret, done);
+
+	SNAPSHOT_VAR_OR_LEAVE(sc->vhdrlen, meta, ret, done);
+	SNAPSHOT_VAR_OR_LEAVE(sc->be_vhdrlen, meta, ret, done);
 
 done:
 	return (ret);
