@@ -103,6 +103,7 @@ __FBSDID("$FreeBSD$");
 struct spinner_info {
 	const size_t *crtval;
 	const size_t maxval;
+	const size_t total;
 };
 
 extern int guest_ncpus;
@@ -701,7 +702,7 @@ static void *
 snapshot_spinner_cb(void *arg)
 {
 	int rc;
-	size_t crtval, maxval;
+	size_t crtval, maxval, total;
 	struct spinner_info *si;
 	struct timespec ts;
 
@@ -715,8 +716,9 @@ snapshot_spinner_cb(void *arg)
 	do {
 		crtval = *si->crtval;
 		maxval = si->maxval;
+		total = si->total;
 
-		rc = print_progress(crtval, maxval);
+		rc = print_progress(crtval, total);
 		if (rc < 0) {
 			fprintf(stderr, "Failed to parse progress\n");
 			break;
@@ -755,7 +757,8 @@ vm_snapshot_mem_part(const int snapfd, const size_t foff, void *src,
 	if (show_progress) {
 		si = &(struct spinner_info) {
 			.crtval = &part_done,
-			.maxval = totalmem
+			.maxval = foff + len,
+			.total = totalmem
 		};
 
 		rc = pthread_create(&spinner_th, 0, snapshot_spinner_cb, si);
