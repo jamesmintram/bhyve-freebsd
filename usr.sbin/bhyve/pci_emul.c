@@ -58,6 +58,10 @@ __FBSDID("$FreeBSD$");
 #include "pci_irq.h"
 #include "pci_lpc.h"
 
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
+
 #define CONF1_ADDR_PORT	   0x0cf8
 #define CONF1_DATA_PORT	   0x0cfc
 
@@ -231,6 +235,28 @@ pci_parse_slot(char *opt)
 	error = 0;
 	si->si_funcs[fnum].fi_name = emul;
 	si->si_funcs[fnum].fi_param = config;
+
+	#ifdef BHYVE_SNAPSHOT
+	// save newly parsed device for snapshot functionality
+	//TODO: CHANGE THIS SO THAT IT DOESNT DEPEND ON THE DEVICE NAME
+	if (strcmp(si->si_funcs[fnum].fi_name, "hostbridge")){
+		struct pci_snapshot_meta *pci_meta = 
+			(struct pci_snapshot_meta *)malloc(
+			sizeof (struct pci_snapshot_meta));
+
+		pci_meta->bus = bnum;
+		pci_meta->slot = snum;
+		pci_meta->func = fnum;
+
+		if (pci_meta == NULL) {
+			fprintf(stderr, "Error allocating space for pci_meta");
+			goto done;	
+		}
+
+		size_t meta_size = sizeof(struct pci_snapshot_meta);
+		pushback_registered_devs(si->si_funcs[fnum].fi_name, pci_meta, meta_size);
+	}
+	#endif
 
 done:
 	if (error)
@@ -2019,52 +2045,49 @@ done:
 
 static int
 pci_find_slotted_dev(const char *dev_name, struct pci_devemu **pde,
-		     struct pci_devinst **pdi)
+		     struct pci_devinst **pdi, struct pci_snapshot_meta *pci_dev_meta)
 {
 	struct businfo *bi;
 	struct slotinfo *si;
 	struct funcinfo *fi;
-	int bus, slot, func;
+
+	int bus = pci_dev_meta->bus;
+	int slot = pci_dev_meta->slot;
+	int func = pci_dev_meta->func;
 
 	assert(dev_name != NULL);
 	assert(pde != NULL);
 	assert(pdi != NULL);
+	
+	if ((bi = pci_businfo[bus]) == NULL)
+		return (EINVAL);
+	
+	si = &bi->slotinfo[slot];
+	fi = &si->si_funcs[func];
+	
+	if (fi->fi_name == NULL)
+		return (EINVAL);
+	if (strcmp(dev_name, fi->fi_name))
+		return (EINVAL);
 
-	for (bus = 0; bus < MAXBUSES; bus++) {
-		if ((bi = pci_businfo[bus]) == NULL)
-			continue;
+	*pde = pci_emul_finddev(fi->fi_name);
+	assert(*pde != NULL);
 
-		for (slot = 0; slot < MAXSLOTS; slot++) {
-			si = &bi->slotinfo[slot];
-			for (func = 0; func < MAXFUNCS; func++) {
-				fi = &si->si_funcs[func];
-				if (fi->fi_name == NULL)
-					continue;
-				if (strcmp(dev_name, fi->fi_name))
-					continue;
-
-				*pde = pci_emul_finddev(fi->fi_name);
-				assert(*pde != NULL);
-
-				*pdi = fi->fi_devi;
-				return (0);
-			}
-		}
-	}
-
-	return (EINVAL);
+	*pdi = fi->fi_devi;
+	return (0);
 }
 
 int
-pci_snapshot(struct vm_snapshot_meta *meta)
+pci_snapshot(struct vm_snapshot_meta *meta, void *dev_meta)
 {
 	struct pci_devemu *pde;
 	struct pci_devinst *pdi;
+	struct pci_snapshot_meta *pci_dev_meta = (struct pci_snapshot_meta*) dev_meta;
 	int ret;
 
 	assert(meta->dev_name != NULL);
 
-	ret = pci_find_slotted_dev(meta->dev_name, &pde, &pdi);
+	ret = pci_find_slotted_dev(meta->dev_name, &pde, &pdi, pci_dev_meta);
 	if (ret != 0) {
 		fprintf(stderr, "%s: no such name: %s\r\n",
 			__func__, meta->dev_name);
@@ -2093,15 +2116,18 @@ pci_snapshot(struct vm_snapshot_meta *meta)
 }
 
 int
-pci_pause(struct vmctx *ctx, const char *dev_name)
+pci_pause(struct vmctx *ctx, const char *dev_name, void *dev_meta)
 {
 	struct pci_devemu *pde;
 	struct pci_devinst *pdi;
 	int ret;
+	
+	assert(dev_meta != NULL);
+	
+	struct pci_snapshot_meta *pci_dev_meta = (struct pci_snapshot_meta*) dev_meta;
+	
 
-	assert(dev_name != NULL);
-
-	ret = pci_find_slotted_dev(dev_name, &pde, &pdi);
+	ret = pci_find_slotted_dev(dev_name, &pde, &pdi, pci_dev_meta);
 	if (ret != 0) {
 		/*
 		 * It is possible to call this function without
@@ -2122,15 +2148,17 @@ pci_pause(struct vmctx *ctx, const char *dev_name)
 }
 
 int
-pci_resume(struct vmctx *ctx, const char *dev_name)
+pci_resume(struct vmctx *ctx, const char *dev_name, void *dev_meta)
 {
 	struct pci_devemu *pde;
 	struct pci_devinst *pdi;
+	struct pci_snapshot_meta *pci_dev_meta = (struct pci_snapshot_meta*) dev_meta;
+
 	int ret;
 
-	assert(dev_name != NULL);
+	assert(dev_meta != NULL);
 
-	ret = pci_find_slotted_dev(dev_name, &pde, &pdi);
+	ret = pci_find_slotted_dev(dev_name, &pde, &pdi, pci_dev_meta);
 	if (ret != 0) {
 		/*
 		 * It is possible to call this function without
