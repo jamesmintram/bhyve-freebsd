@@ -71,7 +71,7 @@ __FBSDID("$FreeBSD$");
 
 
 #include "debug.h"
-#include "iov.h"
+#include "amd64/iov.h"
 #include "mevent.h"
 #include "net_backends.h"
 
