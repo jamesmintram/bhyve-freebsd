@@ -53,9 +53,9 @@ __FBSDID("$FreeBSD$");
 
 #include "bhyverun.h"
 #include "debug.h"
+#include "pci/pci_emul.h"
+#include "virtio.h"
 #include "block_if.h"
-#include "devemu.h"
-#include "devemu_virtio.h"
 
 #define VTBLK_RINGSZ	128
 
@@ -127,57 +127,57 @@ static int pci_vtblk_debug;
 #define DPRINTF(params) if (pci_vtblk_debug) PRINTLN params
 #define WPRINTF(params) PRINTLN params
 
-struct devemu_vtblk_ioreq {
+struct pci_vtblk_ioreq {
 	struct blockif_req		io_req;
-	struct devemu_vtblk_softc	*io_sc;
-	uint8_t			       *io_status;
+	struct pci_vtblk_softc		*io_sc;
+	uint8_t				*io_status;
 	uint16_t			io_idx;
 };
 
 /*
  * Per-device softc
  */
-struct devemu_vtblk_softc {
+struct pci_vtblk_softc {
 	struct virtio_softc vbsc_vs;
 	pthread_mutex_t vsc_mtx;
 	struct vqueue_info vbsc_vq;
 	struct vtblk_config vbsc_cfg;
 	struct blockif_ctxt *bc;
 	char vbsc_ident[VTBLK_BLK_ID_BYTES];
-	struct devemu_vtblk_ioreq vbsc_ios[VTBLK_RINGSZ];
+	struct pci_vtblk_ioreq vbsc_ios[VTBLK_RINGSZ];
 };
 
-static void devemu_vtblk_reset(void *);
-static void devemu_vtblk_notify(void *, struct vqueue_info *);
-static int devemu_vtblk_cfgread(void *, int, int, uint32_t *);
-static int devemu_vtblk_cfgwrite(void *, int, int, uint32_t);
+static void pci_vtblk_reset(void *);
+static void pci_vtblk_notify(void *, struct vqueue_info *);
+static int pci_vtblk_cfgread(void *, int, int, uint32_t *);
+static int pci_vtblk_cfgwrite(void *, int, int, uint32_t);
 
 static struct virtio_consts vtblk_vi_consts = {
 	"vtblk",		/* our name */
 	1,			/* we support 1 virtqueue */
-	sizeof(struct vtblk_config), /* config reg size */
-	devemu_vtblk_reset,	/* reset */
-	devemu_vtblk_notify,	/* device-wide qnotify */
-	devemu_vtblk_cfgread,	/* read PCI config */
-	devemu_vtblk_cfgwrite,	/* write PCI config */
+	sizeof(struct vtblk_config),	/* config reg size */
+	pci_vtblk_reset,	/* reset */
+	pci_vtblk_notify,	/* device-wide qnotify */
+	pci_vtblk_cfgread,	/* read PCI config */
+	pci_vtblk_cfgwrite,	/* write PCI config */
 	NULL,			/* apply negotiated features */
 	VTBLK_S_HOSTCAPS,	/* our capabilities */
 };
 
 static void
-devemu_vtblk_reset(void *vsc)
+pci_vtblk_reset(void *vsc)
 {
-	struct devemu_vtblk_softc *sc = vsc;
+	struct pci_vtblk_softc *sc = vsc;
 
 	DPRINTF(("vtblk: device reset requested !"));
 	vi_reset_dev(&sc->vbsc_vs);
 }
 
 static void
-devemu_vtblk_done(struct blockif_req *br, int err)
+pci_vtblk_done(struct blockif_req *br, int err)
 {
-	struct devemu_vtblk_ioreq *io = br->br_param;
-	struct devemu_vtblk_softc *sc = io->io_sc;
+	struct pci_vtblk_ioreq *io = br->br_param;
+	struct pci_vtblk_softc *sc = io->io_sc;
 
 	/* convert errno into a virtio block error return */
 	if (err == EOPNOTSUPP || err == ENOSYS)
@@ -198,10 +198,10 @@ devemu_vtblk_done(struct blockif_req *br, int err)
 }
 
 static void
-devemu_vtblk_proc(struct devemu_vtblk_softc *sc, struct vqueue_info *vq)
+pci_vtblk_proc(struct pci_vtblk_softc *sc, struct vqueue_info *vq)
 {
 	struct virtio_blk_hdr *vbh;
-	struct devemu_vtblk_ioreq *io;
+	struct pci_vtblk_ioreq *io;
 	int i, n;
 	int err;
 	ssize_t iolen;
@@ -255,7 +255,7 @@ devemu_vtblk_proc(struct devemu_vtblk_softc *sc, struct vqueue_info *vq)
 
 	DPRINTF(("virtio-block: %s op, %zd bytes, %d segs, offset %ld",
 		 writeop ? "write" : "read/ident", iolen, i - 1,
-		 (long long) io->io_req.br_offset));
+		 io->io_req.br_offset));
 
 	switch (type) {
 	case VBH_OP_READ:
@@ -274,32 +274,32 @@ devemu_vtblk_proc(struct devemu_vtblk_softc *sc, struct vqueue_info *vq)
 		memset(iov[1].iov_base, 0, iov[1].iov_len);
 		strncpy(iov[1].iov_base, sc->vbsc_ident,
 		    MIN(iov[1].iov_len, sizeof(sc->vbsc_ident)));
-		devemu_vtblk_done(&io->io_req, 0);
+		pci_vtblk_done(&io->io_req, 0);
 		return;
 	default:
-		devemu_vtblk_done(&io->io_req, EOPNOTSUPP);
+		pci_vtblk_done(&io->io_req, EOPNOTSUPP);
 		return;
 	}
 	assert(err == 0);
 }
 
 static void
-devemu_vtblk_notify(void *vsc, struct vqueue_info *vq)
+pci_vtblk_notify(void *vsc, struct vqueue_info *vq)
 {
-	struct devemu_vtblk_softc *sc = vsc;
+	struct pci_vtblk_softc *sc = vsc;
 
 	while (vq_has_descs(vq))
-		devemu_vtblk_proc(sc, vq);
+		pci_vtblk_proc(sc, vq);
 }
 
 static int
-devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
+pci_vtblk_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 {
 	char bident[sizeof("XX:X:X")];
 	struct blockif_ctxt *bctxt;
 	MD5_CTX mdctx;
 	u_char digest[16];
-	struct devemu_vtblk_softc *sc;
+	struct pci_vtblk_softc *sc;
 	off_t size;
 	int i, sectsz, sts, sto;
 
@@ -311,8 +311,7 @@ devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 	/*
 	 * The supplied backing file has to exist
 	 */
-	snprintf(bident, sizeof(bident), "%*s", (int) sizeof(bident) - 1,
-		 di->di_name);
+	snprintf(bident, sizeof(bident), "%d:%d", pi->pi_slot, pi->pi_func);
 	bctxt = blockif_open(opts, bident);
 	if (bctxt == NULL) {
 		perror("Could not open backing file");
@@ -323,11 +322,11 @@ devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 	sectsz = blockif_sectsz(bctxt);
 	blockif_psectsz(bctxt, &sts, &sto);
 
-	sc = calloc(1, sizeof(struct devemu_vtblk_softc));
+	sc = calloc(1, sizeof(struct pci_vtblk_softc));
 	sc->bc = bctxt;
 	for (i = 0; i < VTBLK_RINGSZ; i++) {
-		struct devemu_vtblk_ioreq *io = &sc->vbsc_ios[i];
-		io->io_req.br_callback = devemu_vtblk_done;
+		struct pci_vtblk_ioreq *io = &sc->vbsc_ios[i];
+		io->io_req.br_callback = pci_vtblk_done;
 		io->io_req.br_param = io;
 		io->io_sc = sc;
 		io->io_idx = i;
@@ -336,7 +335,7 @@ devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 	pthread_mutex_init(&sc->vsc_mtx, NULL);
 
 	/* init virtio softc and virtqueues */
-	vi_softc_linkup(&sc->vbsc_vs, &vtblk_vi_consts, sc, di, &sc->vbsc_vq);
+	vi_softc_linkup(&sc->vbsc_vs, &vtblk_vi_consts, sc, pi, &sc->vbsc_vq);
 	sc->vbsc_vs.vs_mtx = &sc->vsc_mtx;
 
 	sc->vbsc_vq.vq_qsize = VTBLK_RINGSZ;
@@ -382,19 +381,23 @@ devemu_vtblk_init(struct vmctx *ctx, struct devemu_inst *di, char *opts)
 	 * have the device, class, and subdev_0 as fields in
 	 * the virtio constants structure.
 	 */
-	vi_devemu_init(di, VIRTIO_TYPE_BLOCK);
+	pci_set_cfgdata16(pi, PCIR_DEVICE, VIRTIO_DEV_BLOCK);
+	pci_set_cfgdata16(pi, PCIR_VENDOR, VIRTIO_VENDOR);
+	pci_set_cfgdata8(pi, PCIR_CLASS, PCIC_STORAGE);
+	pci_set_cfgdata16(pi, PCIR_SUBDEV_0, VIRTIO_TYPE_BLOCK);
+	pci_set_cfgdata16(pi, PCIR_SUBVEND_0, VIRTIO_VENDOR);
 
 	if (vi_intr_init(&sc->vbsc_vs, 1, fbsdrun_virtio_msix())) {
 		blockif_close(sc->bc);
 		free(sc);
 		return (1);
 	}
-	vi_set_io_res(&sc->vbsc_vs, 0);
+	vi_set_io_bar(&sc->vbsc_vs, 0);
 	return (0);
 }
 
 static int
-devemu_vtblk_cfgwrite(void *vsc, int offset, int size, uint32_t value)
+pci_vtblk_cfgwrite(void *vsc, int offset, int size, uint32_t value)
 {
 
 	DPRINTF(("vtblk: write to readonly reg %d", offset));
@@ -402,9 +405,9 @@ devemu_vtblk_cfgwrite(void *vsc, int offset, int size, uint32_t value)
 }
 
 static int
-devemu_vtblk_cfgread(void *vsc, int offset, int size, uint32_t *retval)
+pci_vtblk_cfgread(void *vsc, int offset, int size, uint32_t *retval)
 {
-	struct devemu_vtblk_softc *sc = vsc;
+	struct pci_vtblk_softc *sc = vsc;
 	void *ptr;
 
 	/* our caller has already verified offset and size */
@@ -413,10 +416,10 @@ devemu_vtblk_cfgread(void *vsc, int offset, int size, uint32_t *retval)
 	return (0);
 }
 
-struct devemu_dev devemu_de_vblk = {
-	.de_emu =	"virtio-blk",
-	.de_init =	devemu_vtblk_init,
-	.de_write =	vi_devemu_write,
-	.de_read =	vi_devemu_read
+struct pci_devemu pci_de_vblk = {
+	.pe_emu =	"virtio-blk",
+	.pe_init =	pci_vtblk_init,
+	.pe_barwrite =	vi_pci_write,
+	.pe_barread =	vi_pci_read
 };
-DEVEMU_SET(devemu_de_vblk);
+PCI_EMUL_SET(pci_de_vblk);

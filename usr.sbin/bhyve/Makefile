@@ -18,16 +18,15 @@ SRCS=	\
 	net_backends.c		\
 	net_utils.c		\
 	block_if.c		\
-	devemu_virtio_block.c	\
-	devemu_virtio_console.c	\
-	devemu_virtio_net.c	\
-	devemu_virtio_rnd.c	\
+	pci_virtio_block.c	\
+	pci_virtio_console.c	\
+	pci_virtio_net.c	\
+	pci_virtio_rnd.c	\
 	mevent.c		\
 	sockstream.c
 
 LIBADD=	vmmapi md pthread
 
-<<<<<<< HEAD
 .if ${MK_INET_SUPPORT} != "no"
 CFLAGS+=-DINET
 .endif
@@ -38,8 +37,6 @@ CFLAGS+=-DINET6
 CFLAGS+=-DNO_OPENSSL
 .endif
 
-=======
->>>>>>> Further work into rebasing
 .if exists(${BHYVE_SRCTOP}/${MACHINE})
 BHYVE_ARCH=	${MACHINE}
 .elif exists(${BHYVE_SRCTOP}/${MACHINE_ARCH})
