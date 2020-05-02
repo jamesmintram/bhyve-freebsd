@@ -69,7 +69,8 @@ SRCS=	\
 	vga.c			\
 	xmsr.c			\
 	spinup_ap.c		\
-	iov.c
+	iov.c			\
+	usb_pmapper.c
 
 .PATH:  ${BHYVE_SYSDIR}/sys/amd64/vmm
 SRCS+=	vmm_instruction_emul.c
