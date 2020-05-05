@@ -44,7 +44,7 @@ usb_get_native_devinfo(struct libusb_device *ldev,
 
 	rc = libusb_get_device_descriptor(ldev, &d);
 	if (rc) {
-		UPRINTF(LWRN, "fail to get descriptor for %d-%s\r\n",
+		fprintf(stderr, "fail to get descriptor for %d-%s\r\n",
 				info->path.bus, usb_dev_path(&info->path));
 		return false;
 	}
@@ -62,7 +62,7 @@ usb_get_native_devinfo(struct libusb_device *ldev,
 	if (info->type == USB_TYPE_EXTHUB) {
 		info->maxchild = usb_get_hub_port_num(&info->path);
 		if (info->maxchild < 0)
-			UPRINTF(LDBG, "fail to get count of numbers of hub"
+			fprintf(stderr, "fail to get count of numbers of hub"
 					" %d-%s\r\n", info->path.bus,
 					usb_dev_path(&info->path));
 	}
@@ -87,7 +87,7 @@ internal_scan(struct libusb_device ***list, int list_sz, int depth,
 
 	devlist = *list;
 	if (depth >= USB_MAX_TIERS) {
-		UPRINTF(LFTL, "max hub layers(7) reached, stop scan\r\n");
+		fprintf(stderr, "max hub layers(7) reached, stop scan\r\n");
 		return;
 	}
 
@@ -161,7 +161,7 @@ libusb_speed_to_usb_speed(int libusb_speed)
 		speed = USB_SPEED_SUPER;
 		break;
 	default:
-		UPRINTF(LWRN, "%s unexpect speed %d\r\n", __func__,
+		fprintf(stderr, "%s unexpect speed %d\r\n", __func__,
 				libusb_speed);
 	}
 	return speed;
@@ -184,7 +184,7 @@ usb_dev_comp_cb(struct libusb_transfer *trn)
 	/* async request */
 	r = trn->user_data;
 	if (!r) {
-		UPRINTF(LFTL, "error: user context data not found on USB transfer\r\n");
+		fprintf(stderr, "error: user context data not found on USB transfer\r\n");
 		goto free_transfer;
 	}
 	info = &r->udev->info;
@@ -196,9 +196,9 @@ usb_dev_comp_cb(struct libusb_transfer *trn)
 	if (trn->type == LIBUSB_TRANSFER_TYPE_ISOCHRONOUS) {
 		/* got the isoc frame length */
 		framelen = USB_EP_MAXP_SZ(maxp) * (1 + USB_EP_MAXP_MT(maxp));
-		UPRINTF(LDBG, "iso maxp %u framelen %d\r\n", maxp, framelen);
+		fprintf(stderr, "iso maxp %u framelen %d\r\n", maxp, framelen);
 	}
-	UPRINTF(LDBG, "%s: %d-%s: actlen %d ep%d-xfr [%d-%d %d] rq-%d "
+	fprintf(stderr, "%s: %d-%s: actlen %d ep%d-xfr [%d-%d %d] rq-%d "
 			"[%d-%d %d] st %d\r\n", __func__, info->path.bus,
 			usb_dev_path(&info->path), trn->actual_length,
 			xfer->epid, xfer->head, xfer->tail, xfer->ndata,
@@ -241,13 +241,13 @@ usb_dev_comp_cb(struct libusb_transfer *trn)
 	case LIBUSB_TRANSFER_COMPLETED:
 		break;
 	default:
-		UPRINTF(LWRN, "unknown failure: %x\r\n", trn->status);
+		fprintf(stderr, "unknown failure: %x\r\n", trn->status);
 		break;
 	}
 
 	g_ctx.lock_ep_cb(xfer->dev, &xfer->epid);
 	for (i = 0; i < trn->num_iso_packets; i++)
-		UPRINTF(LDBG, "iso_frame %d len %u act_len %u\n", i,
+		fprintf(stderr, "iso_frame %d len %u act_len %u\n", i,
 				trn->iso_packet_desc[i].length,
 				trn->iso_packet_desc[i].actual_length);
 
@@ -271,7 +271,7 @@ usb_dev_comp_cb(struct libusb_transfer *trn)
 			block = &xfer->data[idx];
 			if (block->stat == USB_BLOCK_FREE &&
 					block->type != USB_DATA_NONE)
-				UPRINTF(LFTL, "error: found free block\r\n");
+				fprintf(stderr, "error: found free block\r\n");
 
 			d = done;
 			if (d > block->blen)
@@ -401,7 +401,7 @@ usb_dev_prepare_xfer(struct usb_xfer *xfer, int *head, int *tail)
 			block->stat = USB_BLOCK_HANDLED;
 			continue;
 		default:
-			UPRINTF(LFTL, "%s error stat %d\r\n",
+			fprintf(stderr, "%s error stat %d\r\n",
 					__func__, block->type);
 		}
 	}
@@ -431,7 +431,7 @@ static inline struct usb_dev_ep *
 usb_dev_get_ep(struct usb_dev *udev, int pid, int ep)
 {
 	if (ep < 0 || ep >= USB_NUM_ENDPOINT) {
-		UPRINTF(LWRN, "invalid ep %d\r\n", ep);
+		fprintf(stderr, "invalid ep %d\r\n", ep);
 		return NULL;
 	}
 
@@ -543,7 +543,7 @@ usb_dev_native_toggle_if(struct usb_dev *udev, int claim)
 	path = &udev->info.path;
 	r = libusb_get_active_config_descriptor(udev->info.priv_data, &config);
 	if (r) {
-		UPRINTF(LWRN, "%d-%s: can't get config\r\n", path->bus,
+		fprintf(stderr, "%d-%s: can't get config\r\n", path->bus,
 				usb_dev_path(path));
 		return -1;
 	}
@@ -564,13 +564,13 @@ usb_dev_native_toggle_if(struct usb_dev *udev, int claim)
 		}
 		if (r) {
 			rc = -1;
-			UPRINTF(LWRN, "%d-%s:%d.%d can't %s if, r %d\r\n",
+			fprintf(stderr, "%d-%s:%d.%d can't %s if, r %d\r\n",
 					path->bus, usb_dev_path(path), c, i,
 					claim == 1 ? "claim" : "release", r);
 		}
 	}
 	if (rc)
-		UPRINTF(LWRN, "%d-%s fail to %s rc %d\r\n", path->bus,
+		fprintf(stderr, "%d-%s fail to %s rc %d\r\n", path->bus,
 				usb_dev_path(path), claim == 1 ? "claim" :
 				"release", rc);
 
@@ -589,12 +589,12 @@ usb_dev_native_toggle_if_drivers(struct usb_dev *udev, int attach)
 	path = &udev->info.path;
 	r = libusb_get_active_config_descriptor(udev->info.priv_data, &config);
 	if (r) {
-		UPRINTF(LWRN, "%d-%s: can't get config\r\n", path->bus,
+		fprintf(stderr, "%d-%s: can't get config\r\n", path->bus,
 				usb_dev_path(path));
 		return -1;
 	}
 
-	UPRINTF(LDBG, "%s driver\r\n", attach == 1 ?  "attach" : "detach");
+	fprintf(stderr, "%s driver\r\n", attach == 1 ?  "attach" : "detach");
 
 	c = config->bConfigurationValue;
 	for (i = 0; i < config->bNumInterfaces; i++) {
@@ -608,13 +608,13 @@ usb_dev_native_toggle_if_drivers(struct usb_dev *udev, int attach)
 
 		if (r) {
 			rc = -1;
-			UPRINTF(LWRN, "%d-%s:%d.%d can't %stach if driver, r %d"
+			fprintf(stderr, "%d-%s:%d.%d can't %stach if driver, r %d"
 					"\r\n", path->bus, usb_dev_path(path),
 					c, i, attach == 1 ? "at" : "de", r);
 		}
 	}
 	if (rc)
-		UPRINTF(LWRN, "%d-%s fail to %s rc %d\r\n", path->bus,
+		fprintf(stderr, "%d-%s fail to %s rc %d\r\n", path->bus,
 				usb_dev_path(path), attach == 1 ? "attach" :
 				"detach", rc);
 
@@ -638,20 +638,20 @@ usb_dev_set_config(struct usb_dev *udev, struct usb_xfer *xfer, int config)
 
 	rc = libusb_set_configuration(udev->handle, config);
 	if (rc) {
-		UPRINTF(LWRN, "fail to set config rc %d\r\n", rc);
+		fprintf(stderr, "fail to set config rc %d\r\n", rc);
 		goto err2;
 	}
 
 	/* claim all the interfaces of this configuration */
 	rc = libusb_get_active_config_descriptor(udev->info.priv_data, &cfg);
 	if (rc) {
-		UPRINTF(LWRN, "fail to get config rc %d\r\n", rc);
+		fprintf(stderr, "fail to get config rc %d\r\n", rc);
 		goto err2;
 	}
 
 	rc = usb_dev_native_toggle_if(udev, 1);
 	if (rc) {
-		UPRINTF(LWRN, "fail to claim if, rc %d\r\n", rc);
+		fprintf(stderr, "fail to claim if, rc %d\r\n", rc);
 		goto err1;
 	}
 
@@ -667,7 +667,7 @@ err1:
 	usb_dev_native_toggle_if(udev, 0);
 	libusb_free_config_descriptor(cfg);
 err2:
-	UPRINTF(LWRN, "%d-%s: fail to set config\r\n", udev->info.path.bus,
+	fprintf(stderr, "%d-%s: fail to set config\r\n", udev->info.path.bus,
 			usb_dev_path(&udev->info.path));
 	xfer->status = USB_ERR_STALLED;
 }
@@ -679,7 +679,7 @@ usb_dev_set_if(struct usb_dev *udev, int iface, int alt, struct usb_xfer
 	if (iface >= USB_NUM_INTERFACE)
 		goto errout;
 
-	UPRINTF(LDBG, "%d-%s set if, iface %d alt %d\r\n", udev->info.path.bus,
+	fprintf(stderr, "%d-%s set if, iface %d alt %d\r\n", udev->info.path.bus,
 			usb_dev_path(&udev->info.path), iface, alt);
 
 	if (libusb_set_interface_alt_setting(udev->handle, iface, alt))
@@ -696,7 +696,7 @@ usb_dev_set_if(struct usb_dev *udev, int iface, int alt, struct usb_xfer
 
 errout:
 	xfer->status = USB_ERR_STALLED;
-	UPRINTF(LDBG, "%d-%s fail to set if, iface %d alt %d\r\n",
+	fprintf(stderr, "%d-%s fail to set if, iface %d alt %d\r\n",
 			udev->info.path.bus,
 			usb_dev_path(&udev->info.path),
 			iface,
@@ -737,7 +737,7 @@ usb_dev_reset(void *pdata)
 
 	udev = pdata;
 
-	UPRINTF(LDBG, "reset endpoints\n");
+	fprintf(stderr, "reset endpoints\n");
 	libusb_reset_device(udev->handle);
 	usb_dev_reset_ep(udev);
 	usb_dev_update_ep(udev);
@@ -784,14 +784,14 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 		 * compatible usb devices in the market.
 		 */
 		framelen = USB_EP_MAXP_SZ(maxp) * (1 + USB_EP_MAXP_MT(maxp));
-		UPRINTF(LDBG, "iso maxp %u framelen %d\r\n", maxp, framelen);
+		fprintf(stderr, "iso maxp %u framelen %d\r\n", maxp, framelen);
 
 		for (idx = head;
 			index_valid(head, tail, xfer->max_blk_cnt, idx);
 			idx = index_inc(idx, xfer->max_blk_cnt)) {
 
 			if (xfer->data[idx].blen > framelen)
-				UPRINTF(LFTL, "err framelen %d\r\n", framelen);
+				fprintf(stderr, "err framelen %d\r\n", framelen);
 
 			if (xfer->data[idx].type == USB_DATA_NONE ||
 					xfer->data[idx].type == USB_DATA_PART)
@@ -799,9 +799,9 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 			else if (xfer->data[idx].type == USB_DATA_FULL)
 				framecnt++;
 			else
-				UPRINTF(LFTL, "%s:%d error\r\n", __func__, __LINE__);
+				fprintf(stderr, "%s:%d error\r\n", __func__, __LINE__);
 		}
-		UPRINTF(LDBG, "iso maxp %u framelen %d, framecnt %d\r\n", maxp,
+		fprintf(stderr, "iso maxp %u framelen %d, framecnt %d\r\n", maxp,
 				framelen, framecnt);
 	}
 
@@ -816,7 +816,7 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 	r->blk_head = head;
 	r->blk_tail = tail;
 	xfer->reqs[head] = r;
-	UPRINTF(LDBG, "%s: %d-%s: explen %d ep%d-xfr [%d-%d %d] rq-%d "
+	fprintf(stderr, "%s: %d-%s: explen %d ep%d-xfr [%d-%d %d] rq-%d "
 			"[%d-%d %d] dir %s type %s\r\n", __func__,
 			info->path.bus, usb_dev_path(&info->path), size, epctx,
 			xfer->head, xfer->tail, xfer->ndata, r->seq,
@@ -850,11 +850,11 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 			} else if (xfer->data[idx].type == USB_DATA_FULL) {
 				r->trn->iso_packet_desc[i].length += len;
 			} else {
-				UPRINTF(LFTL, "%s:%d error\r\n",
+				fprintf(stderr, "%s:%d error\r\n",
 						__func__, __LINE__);
 			}
 
-			UPRINTF(LDBG, "desc[%d].length %d\r\n", i,
+			fprintf(stderr, "desc[%d].length %d\r\n", i,
 					r->trn->iso_packet_desc[i].length);
 			i++;
 		}
@@ -874,7 +874,7 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 				usb_dev_comp_cb, r, 0);
 
 	} else {
-		UPRINTF(LFTL, "%s: wrong endpoint type %d\r\n", __func__, type);
+		fprintf(stderr, "%s: wrong endpoint type %d\r\n", __func__, type);
 		if (r->buffer)
 			free(r->buffer);
 		if (r->trn)
@@ -886,7 +886,7 @@ usb_dev_data(void *pdata, struct usb_xfer *xfer, int dir, int epctx)
 	rc = libusb_submit_transfer(r->trn);
 	if (rc) {
 		xfer->status = USB_ERR_IOERROR;
-		UPRINTF(LDBG, "libusb_submit_transfer fail: %d\n", rc);
+		fprintf(stderr, "libusb_submit_transfer fail: %d\n", rc);
 	}
 done:
 	return xfer->status;
@@ -914,7 +914,7 @@ clear_uas_desc(struct usb_dev *udev, uint8_t *data, uint32_t len)
 		 * data[i+7] => bInterfaceProtocol
 		 */
 		if (data[i] == 9 && data[i+1] == 0x4 && data[i+7] == 0x62) {
-			UPRINTF(LFTL, "%d-%s: clear uas protocol\r\n",
+			fprintf(stderr, "%d-%s: clear uas protocol\r\n",
 					path->bus, usb_dev_path(path));
 			data[i+7] = 0;
 		}
@@ -939,7 +939,7 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	udev = pdata;
 	xfer->status = USB_ERR_NORMAL_COMPLETION;
 	if (!udev->info.priv_data || !xfer->ureq) {
-		UPRINTF(LWRN, "invalid request\r\n");
+		fprintf(stderr, "invalid request\r\n");
 		xfer->status = USB_ERR_IOERROR;
 		goto out;
 	}
@@ -953,7 +953,7 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	blk = usb_dev_prepare_ctrl_xfer(xfer);
 	data = blk ? blk->buf : NULL;
 
-	UPRINTF(LDBG, "%d-%s: urb: type 0x%x req 0x%x val 0x%x idx %d len %d "
+	fprintf(stderr, "%d-%s: urb: type 0x%x req 0x%x val 0x%x idx %d len %d "
 			"data %d\r\n", udev->info.path.bus,
 			usb_dev_path(&udev->info.path), request_type, request,
 			value, index, len, blk ? blk->blen : 0);
@@ -970,15 +970,15 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 
 	switch (UREQ(request, request_type)) {
 	case UREQ(UR_SET_ADDRESS, UT_WRITE_DEVICE):
-		UPRINTF(LDBG, "UR_SET_ADDRESS\n");
+		fprintf(stderr, "UR_SET_ADDRESS\n");
 		udev->addr = value;
 		goto out;
 	case UREQ(UR_SET_CONFIG, UT_WRITE_DEVICE):
-		UPRINTF(LDBG, "UR_SET_CONFIG\n");
+		fprintf(stderr, "UR_SET_CONFIG\n");
 		usb_dev_set_config(udev, xfer, value & 0xff);
 		goto out;
 	case UREQ(UR_SET_INTERFACE, UT_WRITE_INTERFACE):
-		UPRINTF(LDBG, "UR_SET_INTERFACE\n");
+		fprintf(stderr, "UR_SET_INTERFACE\n");
 		usb_dev_set_if(udev, index, value, xfer);
 		goto out;
 	case UREQ(UR_GET_DESCRIPTOR, UT_READ):
@@ -988,15 +988,15 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	case UREQ(UR_CLEAR_FEATURE, UT_WRITE_ENDPOINT):
 		if (value) {
 			/* according to usb spec (ch9), this is impossible */
-			UPRINTF(LWRN, "Clear Feature request with non-zero "
+			fprintf(stderr, "Clear Feature request with non-zero "
 					"value %d\r\n", value);
 			break;
 		}
 
-		UPRINTF(LDBG, "UR_CLEAR_HALT\n");
+		fprintf(stderr, "UR_CLEAR_HALT\n");
 		rc = libusb_clear_halt(udev->handle, index);
 		if (rc)
-			UPRINTF(LWRN, "fail to clear halted ep, rc %d\r\n", rc);
+			fprintf(stderr, "fail to clear halted ep, rc %d\r\n", rc);
 		goto out;
 
 	}
@@ -1004,7 +1004,7 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	/* (data == NULL && len == 0) is okey to libusb_control_transfer */
 	if (data == NULL && len) {
 		xfer->status = USB_ERR_IOERROR;
-		UPRINTF(LFTL, "%s unexpected NULL data\r\n", __func__);
+		fprintf(stderr, "%s unexpected NULL data\r\n", __func__);
 		goto out;
 	}
 
@@ -1034,7 +1034,7 @@ usb_dev_request(void *pdata, struct usb_xfer *xfer)
 	else
 		xfer->status = usb_dev_err_convert(rc);
 
-	UPRINTF(LDBG, "%d-%s: usb rc %d, blk %p, blen %u bdon %u\n",
+	fprintf(stderr, "%d-%s: usb rc %d, blk %p, blen %u bdon %u\n",
 			udev->info.path.bus, usb_dev_path(&udev->info.path),
 			rc, blk, blk ? blk->blen : 0, blk ? blk->bdone : 0);
 out:
@@ -1052,7 +1052,7 @@ usb_dev_init(void *pdata, char *opt)
 	di = pdata;
 
 	libusb_get_device_descriptor(di->priv_data, &desc);
-	UPRINTF(LINF, "Found USB device: %d-%s\r\nPID(0x%X), VID(0x%X) CLASS"
+	fprintf(stderr, "Found USB device: %d-%s\r\nPID(0x%X), VID(0x%X) CLASS"
 			"(0x%X) SUBCLASS(0x%X) BCD(0x%X) SPEED(%d)\r\n",
 			di->path.bus, usb_dev_path(&di->path), di->pid,
 			di->vid, desc.bDeviceClass, desc.bDeviceSubClass,
@@ -1094,12 +1094,12 @@ usb_dev_init(void *pdata, char *opt)
 
 	/* configure physical device through libusb library */
 	if (libusb_open(udev->info.priv_data, &udev->handle)) {
-		UPRINTF(LWRN, "fail to open device.\r\n");
+		fprintf(stderr, "fail to open device.\r\n");
 		goto errout;
 	}
 
 	if (usb_dev_native_toggle_if_drivers(udev, 0) < 0) {
-		UPRINTF(LWRN, "fail to detach interface driver.\r\n");
+		fprintf(stderr, "fail to detach interface driver.\r\n");
 		goto errout;
 	}
 	return udev;
@@ -1123,7 +1123,7 @@ usb_dev_deinit(void *pdata)
 		if (udev->handle) {
 			rc = usb_dev_native_toggle_if_drivers(udev, 1);
 			if (rc)
-				UPRINTF(LWRN, "fail to attach if drv rc:%d\r\n",
+				fprintf(stderr, "fail to attach if drv rc:%d\r\n",
 						rc);
 			libusb_close(udev->handle);
 		}
@@ -1191,7 +1191,7 @@ usb_dev_sys_thread(void *arg)
 			sleep(1);
 	}
 
-	UPRINTF(LINF, "poll thread exit\n\r");
+	fprintf(stderr, "poll thread exit\n\r");
 	return NULL;
 }
 
@@ -1202,10 +1202,10 @@ usb_dev_native_sys_conn_cb(struct libusb_context *ctx, struct libusb_device
 	struct usb_native_devinfo di;
 	bool ret;
 
-	UPRINTF(LDBG, "connect event\r\n");
+	fprintf(stderr, "connect event\r\n");
 
 	if (!ctx || !ldev) {
-		UPRINTF(LFTL, "connect callback fails!\n");
+		fprintf(stderr, "connect callback fails!\n");
 		return -1;
 	}
 
@@ -1226,10 +1226,10 @@ usb_dev_native_sys_disconn_cb(struct libusb_context *ctx, struct libusb_device
 	struct usb_native_devinfo di;
 	bool ret;
 
-	UPRINTF(LDBG, "disconnect event\r\n");
+	fprintf(stderr, "disconnect event\r\n");
 
 	if (!ctx || !ldev) {
-		UPRINTF(LFTL, "disconnect callback fails!\n");
+		fprintf(stderr, "disconnect callback fails!\n");
 		return -1;
 	}
 
@@ -1257,16 +1257,16 @@ usb_dev_sys_init(usb_dev_sys_cb conn_cb, usb_dev_sys_cb disconn_cb,
 	int native_pid, native_vid, native_cls, rc;
 	int num_devs;
 
-	usb_set_log_level(log_level);
+	//usb_set_log_level(log_level);
 
 	if (g_ctx.libusb_ctx) {
-		UPRINTF(LFTL, "port mapper is already initialized.\r\n");
+		fprintf(stderr, "port mapper is already initialized.\r\n");
 		return -1;
 	}
 
 	rc = libusb_init(&g_ctx.libusb_ctx);
 	if (rc < 0) {
-		UPRINTF(LFTL, "libusb_init fails, rc:%d\r\n", rc);
+		fprintf(stderr, "libusb_init fails, rc:%d\r\n", rc);
 		return -1;
 	}
 
@@ -1279,7 +1279,7 @@ usb_dev_sys_init(usb_dev_sys_cb conn_cb, usb_dev_sys_cb disconn_cb,
 	g_ctx.unlock_ep_cb = unlock_ep_cb;
 
 	num_devs = usb_dev_scan_dev(&g_ctx.devlist);
-	UPRINTF(LINF, "found %d devices before Guest OS booted\r\n", num_devs);
+	fprintf(stderr, "found %d devices before Guest OS booted\r\n", num_devs);
 
 	native_conn_evt    = LIBUSB_HOTPLUG_EVENT_DEVICE_ARRIVED;
 	native_disconn_evt = LIBUSB_HOTPLUG_EVENT_DEVICE_LEFT;
@@ -1341,7 +1341,7 @@ usb_dev_sys_deinit(void)
 	if (!g_ctx.libusb_ctx)
 		return;
 
-	UPRINTF(LINF, "port-mapper de-initialization\r\n");
+	fprintf(stderr, "port-mapper de-initialization\r\n");
 	libusb_hotplug_deregister_callback(g_ctx.libusb_ctx, g_ctx.conn_handle);
 	libusb_hotplug_deregister_callback(g_ctx.libusb_ctx,
 			g_ctx.disconn_handle);
