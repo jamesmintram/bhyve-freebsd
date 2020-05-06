@@ -81,7 +81,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "usb_pass_core.h"
-#include "dm_string.h"
+#include "dm_pass_string.h"
 
 SET_DECLARE(usb_emu_set, struct usb_devemu);
 int usb_log_level;
