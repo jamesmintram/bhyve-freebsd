@@ -71,7 +71,6 @@ SRCS=	\
 	spinup_ap.c		\
 	iov.c			\
 	dm_pass_string.c	\
-	usb_pass_core.c		\
 	usb_pmapper.c
 
 .PATH:  ${BHYVE_SYSDIR}/sys/amd64/vmm

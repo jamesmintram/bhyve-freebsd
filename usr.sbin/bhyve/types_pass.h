@@ -7,11 +7,6 @@
 #include <sched.h>
 #include <sys/types.h>
 
-#define MAXCOMLEN   19      /* max command name remembered */
-#define MAXINTERP   PATH_MAX    /* max interpreter file name length */
-#define MAXLOGNAME  33      /* max login name length (incl. NUL) */
-#define SPECNAMELEN 63      /* max length of devicename */
-
 // typedef cpu_set_t cpuset_t;
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -22,20 +17,8 @@
 })
 
 #define __section(x)		__attribute__((__section__(x)))
-#define __MAKE_SET(set, sym)                        \
-	static void const * const __set_##set##_sym_##sym       \
-	__section("set_" #set) __attribute__((used)) = &sym
 
 #define DATA_SET(set, sym)  __MAKE_SET(set, sym)
-
-#define SET_DECLARE(set, ptype)\
-	 extern ptype * __CONCAT(__start_set_, set); \
-	 extern ptype *__CONCAT(__stop_set_, set)
-
-#define SET_BEGIN(set)                          \
-	(&__CONCAT(__start_set_, set))
-#define SET_LIMIT(set)                          \
-	(&__CONCAT(__stop_set_, set))
 
 #define SET_FOREACH(pvar, set)                      \
 	for (pvar = SET_BEGIN(set); pvar < SET_LIMIT(set); pvar++)
@@ -44,41 +27,6 @@
 #define roundup2(x, y)  (((x)+((y)-1))&(~((y)-1)))
 #define rounddown2(x, y) ((x)&(~((y)-1)))
 
-static inline uint16_t
-be16dec(const void *pp)
-{
-	uint8_t const *p = (uint8_t const *)pp;
-
-	return ((p[0] << 8) | p[1]);
-}
-
-static inline uint32_t
-be32dec(const void *pp)
-{
-	uint8_t const *p = (uint8_t const *)pp;
-
-	return (((uint32_t)p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
-}
-
-static inline void
-be16enc(void *pp, uint16_t u)
-{
-	uint8_t *p = (uint8_t *)pp;
-
-	p[0] = (u >> 8) & 0xff;
-	p[1] = u & 0xff;
-}
-
-static inline void
-be32enc(void *pp, uint32_t u)
-{
-	uint8_t *p = (uint8_t *)pp;
-
-	p[0] = (u >> 24) & 0xff;
-	p[1] = (u >> 16) & 0xff;
-	p[2] = (u >> 8) & 0xff;
-	p[3] = u & 0xff;
-}
 //static inline int
 //flsl(uint64_t mask)
 //{

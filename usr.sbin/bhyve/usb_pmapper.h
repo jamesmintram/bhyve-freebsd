@@ -12,7 +12,7 @@
 //#include <dev/usb/usb.h>
 //#include <dev/usb/usbdi.h>
 //#include <dev/usb/usb_core.h>
-#include "usb_pass_core.h"
+#include "usb_emul.h"
 
 #define USB_NUM_INTERFACE 16
 #define USB_NUM_ENDPOINT  15
