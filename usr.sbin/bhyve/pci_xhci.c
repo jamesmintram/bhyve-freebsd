@@ -175,6 +175,7 @@ struct pci_xhci_dev_ep {
 #define	ep_sctx_trbs	_ep_trb_rings._epu_sctx_trbs
 
 	struct usb_data_xfer *ep_xfer;	/* transfer chain */
+	pthread_mutex_t mtx;
 };
 
 /* device context base address array: maps slot->device context */
@@ -3110,7 +3111,7 @@ static int
 pci_xhci_usb_dev_notify_cb(void *hci_data, void *udev_data)
 {
 	int slot, epid, intr, rc;
-	struct usb_xfer *xfer;
+	struct usb_data_xfer *xfer;
 	struct pci_xhci_dev_emu *edev;
 	struct pci_xhci_softc *xdev;
 
@@ -3144,8 +3145,8 @@ pci_xhci_usb_dev_intr_cb(void *hci_data, void *udev_data)
 	struct pci_xhci_dev_emu *edev;
 
 	edev = hci_data;
-	if (edev && edev->xdev)
-		pci_xhci_assert_interrupt(edev->xdev);
+	if (edev && edev->xsc)
+		pci_xhci_assert_interrupt(edev->xsc);
 
 	return 0;
 }
@@ -3160,7 +3161,7 @@ pci_xhci_usb_dev_lock_ep_cb(void *hci_data, void *udev_data)
 	edev = hci_data;
 	epid = *((int *)udev_data);
 
-	if (edev && edev->xdev && epid > 0 && epid < 32) {
+	if (edev && edev->xsc && epid > 0 && epid < 32) {
 		ep = &edev->eps[epid];
 		pthread_mutex_lock(&ep->mtx);
 	}
@@ -3178,7 +3179,7 @@ pci_xhci_usb_dev_unlock_ep_cb(void *hci_data, void *udev_data)
 	edev = hci_data;
 	epid = *((int *)udev_data);
 
-	if (edev && edev->xdev && epid > 0 && epid < 32) {
+	if (edev && edev->xsc && epid > 0 && epid < 32) {
 		ep = &edev->eps[epid];
 		pthread_mutex_unlock(&ep->mtx);
 	}
@@ -3344,7 +3345,7 @@ pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 				pci_xhci_usb_dev_intr_cb,
 				pci_xhci_usb_dev_lock_ep_cb,
 				pci_xhci_usb_dev_unlock_ep_cb,
-				xdev, usb_get_log_level()) < 0) {
+				sc, usb_get_log_level()) < 0) {
 		error = -3;
 		goto done;
 	}
