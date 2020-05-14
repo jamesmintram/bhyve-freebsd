@@ -61,7 +61,7 @@ __FBSDID("$FreeBSD$");
 #include "usb_emul.h"
 #include "usb_pmapper.h"
 
-static int xhci_debug = 0;
+static int xhci_debug = 1;
 #define	DPRINTF(params) if (xhci_debug) PRINTLN params
 #define	WPRINTF(params) PRINTLN params
 
@@ -400,7 +400,7 @@ pci_xhci_convert_speed(int lspeed)
 		speed = 0x4;
 		break;
 	default:
-		UPRINTF(LFTL, "unkown speed %08x\r\n", lspeed);
+		DPRINTF(("unkown speed %08x\r\n", lspeed));
 	}
 	return speed;
 }
@@ -448,9 +448,9 @@ pci_xhci_change_port(struct pci_xhci_softc *xdev, int port, int usb_speed,
 	/* put it in the event ring */
 	error = pci_xhci_insert_event(xdev, &evtrb, 1);
 	if (error != XHCI_TRB_ERROR_SUCCESS)
-		UPRINTF(LWRN, "fail to report port change\r\n");
+		DPRINTF(("fail to report port change\r\n"));
 
-	UPRINTF(LDBG, "%s: port %d:%08X\r\n", __func__, port, reg->portsc);
+	DPRINTF(("%s: port %d:%08X\r\n", __func__, port, reg->portsc));
 	return (error == XHCI_TRB_ERROR_SUCCESS) ? 0 : -1;
 }
 
@@ -513,15 +513,15 @@ pci_xhci_assign_hub_ports(struct pci_xhci_softc *xdev,
 
 	index = pci_xhci_get_native_port_index_by_path(xdev, &info->path);
 	if (index < 0) {
-		UPRINTF(LDBG, "cannot find hub %d-%s\r\n", info->path.bus,
-				usb_dev_path(&info->path));
+		DPRINTF(("cannot find hub %d-%s\r\n", info->path.bus,
+			 usb_dev_path(&info->path)));
 		return -1;
 	}
 
 	xdev->native_ports[index].info = *info;
-	UPRINTF(LDBG, "Found an USB hub %d-%s with %d port(s).\r\n",
-			info->path.bus, usb_dev_path(&info->path),
-			info->maxchild);
+	DPRINTF(("Found an USB hub %d-%s with %d port(s).\r\n",
+		info->path.bus, usb_dev_path(&info->path),
+		info->maxchild));
 
 	path = &di.path;
 	for (i = 1; i <= info->maxchild; i++) {
@@ -537,11 +537,11 @@ pci_xhci_assign_hub_ports(struct pci_xhci_softc *xdev,
 		/* set the device path as assigned */
 		index = pci_xhci_set_native_port_assigned(xdev, &di);
 		if (index < 0) {
-			UPRINTF(LFTL, "too many USB devices\r\n");
+			DPRINTF(("too many USB devices\r\n"));
 			return -1;
 		}
-		UPRINTF(LDBG, "Add %d-%s as assigned port\r\n",
-				path->bus, usb_dev_path(path));
+		DPRINTF(("Add %d-%s as assigned port\r\n",
+			path->bus, usb_dev_path(path)));
 	}
 	return 0;
 }
@@ -573,15 +573,15 @@ pci_xhci_unassign_hub_ports(struct pci_xhci_softc *xdev,
 
 	index = pci_xhci_get_native_port_index_by_path(xdev, &info->path);
 	if (index < 0) {
-		UPRINTF(LFTL, "cannot find USB hub %d-%s\r\n",
-			info->path.bus, usb_dev_path(&info->path));
+		DPRINTF(("cannot find USB hub %d-%s\r\n",
+			info->path.bus, usb_dev_path(&info->path)));
 		return -1;
 	}
 
 	oldinfo = &xdev->native_ports[index].info;
-	UPRINTF(LDBG, "Disconnect an USB hub %d-%s with %d port(s)\r\n",
+	DPRINTF(("Disconnect an USB hub %d-%s with %d port(s)\r\n",
 			oldinfo->path.bus, usb_dev_path(&oldinfo->path),
-			oldinfo->maxchild);
+			oldinfo->maxchild));
 
 	path = &di.path;
 	for (i = 1; i <= oldinfo->maxchild; i++) {
@@ -596,8 +596,8 @@ pci_xhci_unassign_hub_ports(struct pci_xhci_softc *xdev,
 
 		/* clear the device path as not assigned */
 		pci_xhci_clr_native_port_assigned(xdev, &di);
-		UPRINTF(LDBG, "Del %d-%s as assigned port\r\n",
-				path->bus, usb_dev_path(path));
+		DPRINTF(("Del %d-%s as assigned port\r\n",
+				path->bus, usb_dev_path(path)));
 	}
 	return 0;
 }
@@ -664,8 +664,8 @@ xhci_vbdp_thread(void *data)
 
 		speed = pci_xhci_convert_speed(p->info.speed);
 		pci_xhci_connect_port(xdev, p->vport, speed, 1);
-		UPRINTF(LINF, "change portsc for %d-%s\r\n", p->info.path.bus,
-				usb_dev_path(&p->info.path));
+		DPRINTF(("change portsc for %d-%s\r\n", p->info.path.bus,
+			usb_dev_path(&p->info.path)));
 	}
 	return NULL;
 }
@@ -806,7 +806,7 @@ pci_xhci_portregs_write(struct pci_xhci_softc *sc, uint64_t offset,
 
 		p->portsc &= XHCI_PS_PED | XHCI_PS_PLS_MASK |
 		             XHCI_PS_SPEED_MASK | XHCI_PS_PIC_MASK;
-  
+
 		if (XHCI_DEVINST_PTR(sc, port))
 			p->portsc |= XHCI_PS_CCS;
 
@@ -862,7 +862,7 @@ pci_xhci_portregs_write(struct pci_xhci_softc *sc, uint64_t offset,
 			break;
 		}
 		break;
-	case 4: 
+	case 4:
 		/* Port power management status and control register  */
 		p->portpmsc = value;
 		break;
@@ -915,7 +915,7 @@ pci_xhci_trb_next(struct pci_xhci_softc *sc, struct xhci_trb *curtrb,
 	if (XHCI_TRB_3_TYPE_GET(curtrb->dwTrb3) == XHCI_TRB_TYPE_LINK) {
 		if (guestaddr)
 			*guestaddr = curtrb->qwTrb0 & ~0xFUL;
-		
+
 		next = XHCI_GADDR(sc, curtrb->qwTrb0 & ~0xFUL);
 	} else {
 		if (guestaddr)
@@ -930,7 +930,6 @@ pci_xhci_trb_next(struct pci_xhci_softc *sc, struct xhci_trb *curtrb,
 static void
 pci_xhci_assert_interrupt(struct pci_xhci_softc *sc)
 {
-
 	sc->rtsregs.intrreg.erdp |= XHCI_ERDP_LO_BUSY;
 	sc->rtsregs.intrreg.iman |= XHCI_IMAN_INTR_PEND;
 	sc->opregs.usbsts |= XHCI_STS_EINT;
@@ -948,7 +947,6 @@ pci_xhci_assert_interrupt(struct pci_xhci_softc *sc)
 static void
 pci_xhci_deassert_interrupt(struct pci_xhci_softc *sc)
 {
-
 	if (!pci_msi_enabled(sc->xsc_pi))
 		pci_lintr_assert(sc->xsc_pi);
 }
@@ -2972,8 +2970,8 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 	di = dev_data;
 
 	/* print physical information about new device */
-	UPRINTF(LINF, "%04x:%04x %d-%s connecting.\r\n", di->vid, di->pid,
-			di->path.bus, usb_dev_path(&di->path));
+	DPRINTF(("%04x:%04x %d-%s connecting.\r\n", di->vid, di->pid,
+			di->path.bus, usb_dev_path(&di->path)));
 
 	index = pci_xhci_get_native_port_index_by_path(xdev, &di->path);
 	if (index < 0) {
@@ -2991,8 +2989,8 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 		return 0;
 	}
 
-	UPRINTF(LINF, "%04x:%04x %d-%s belong to this vm.\r\n", di->vid,
-			di->pid, di->path.bus, usb_dev_path(&di->path));
+	DPRINTF(("%04x:%04x %d-%s belong to this vm.\r\n", di->vid,
+			di->pid, di->path.bus, usb_dev_path(&di->path)));
 
 	for (i = 0; xdev->vbdp_dev_num && i < XHCI_MAX_DEVICES; ++i) {
 		if (xdev->vbdp_devs[i].state != S3_VBDP_START)
@@ -3003,8 +3001,8 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 
 		s3_conn = 1;
 		vport = xdev->vbdp_devs[i].vport;
-		UPRINTF(LINF, "Skip and cache connect event for %d-%s\r\n",
-				di->path.bus, usb_dev_path(&di->path));
+		DPRINTF(("Skip and cache connect event for %d-%s\r\n",
+				di->path.bus, usb_dev_path(&di->path)));
 		break;
 	}
 
@@ -3012,9 +3010,9 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 		vport = pci_xhci_get_free_vport(xdev, di);
 
 	if (vport <= 0) {
-		UPRINTF(LFTL, "no free virtual port for native device %d-%s"
+		DPRINTF(("no free virtual port for native device %d-%s"
 				"\r\n", di->path.bus,
-				usb_dev_path(&di->path));
+				usb_dev_path(&di->path)));
 		goto errout;
 	}
 
@@ -3022,9 +3020,9 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 	xdev->native_ports[index].info = *di;
 	xdev->native_ports[index].state = VPORT_CONNECTED;
 
-	UPRINTF(LINF, "%04X:%04X %d-%s is attached to virtual port %d.\r\n",
+	DPRINTF(("%04X:%04X %d-%s is attached to virtual port %d.\r\n",
 			di->vid, di->pid, di->path.bus,
-			usb_dev_path(&di->path), vport);
+			usb_dev_path(&di->path), vport));
 
 	/* we will report connecting event in xhci_vbdp_thread for
 	 * device that hasn't complete the S3 process
@@ -3034,7 +3032,7 @@ pci_xhci_native_usb_dev_conn_cb(void *hci_data, void *dev_data)
 
 	/* Trigger port change event for the arriving device */
 	if (pci_xhci_connect_port(xdev, vport, di->speed, 1))
-		UPRINTF(LFTL, "fail to report port event\n");
+		DPRINTF(("fail to report port event\n"));
 
 	return 0;
 errout:
@@ -3057,24 +3055,24 @@ pci_xhci_native_usb_dev_disconn_cb(void *hci_data, void *dev_data)
 	xdev = hci_data;
 	di = dev_data;
 	if (!pci_xhci_is_valid_portnum(ROOTHUB_PORT(di->path))) {
-		UPRINTF(LFTL, "invalid physical port %d\r\n",
-				ROOTHUB_PORT(di->path));
+		DPRINTF(("invalid physical port %d\r\n",
+				ROOTHUB_PORT(di->path)));
 		return -1;
 	}
 
 	index = pci_xhci_get_native_port_index_by_path(xdev, &di->path);
 	if (index < 0) {
-		UPRINTF(LFTL, "fail to find physical port %d\r\n",
-				ROOTHUB_PORT(di->path));
+		DPRINTF(("fail to find physical port %d\r\n",
+				ROOTHUB_PORT(di->path)));
 		return -1;
 	}
 
 	if (di->type == USB_TYPE_EXTHUB) {
 		rc = pci_xhci_unassign_hub_ports(xdev, di);
 		if (rc < 0)
-			UPRINTF(LFTL, "fail to unassign the ports of hub"
+			DPRINTF(("fail to unassign the ports of hub"
 					" %d-%s\r\n", di->path.bus,
-					usb_dev_path(&di->path));
+					usb_dev_path(&di->path)));
 		return 0;
 	}
 
@@ -3088,9 +3086,9 @@ pci_xhci_native_usb_dev_disconn_cb(void *hci_data, void *dev_data)
 		 * procedure is started. The related states should be
 		 * cleared for future connecting.
 		 */
-		UPRINTF(LFTL, "disconnect VPORT_CONNECTED device: "
+		DPRINTF(("disconnect VPORT_CONNECTED device: "
 				"%d-%s vport %d\r\n", di->path.bus,
-				usb_dev_path(&di->path), vport);
+				usb_dev_path(&di->path), vport));
 		pci_xhci_disconnect_port(xdev, vport, 0);
 		xdev->native_ports[index].state = VPORT_ASSIGNED;
 		return 0;
@@ -3112,9 +3110,9 @@ pci_xhci_native_usb_dev_disconn_cb(void *hci_data, void *dev_data)
 		 * we do nothing here for device that is in the middle of
 		 * S3 resuming process.
 		 */
-		UPRINTF(LINF, "disconnect device %d-%s on vport %d with "
+		DPRINTF(("disconnect device %d-%s on vport %d with "
 				"state %d and return.\r\n", di->path.bus,
-				usb_dev_path(&di->path), vport, state);
+				usb_dev_path(&di->path), vport, state));
 		return 0;
 	}
 
@@ -3124,8 +3122,8 @@ pci_xhci_native_usb_dev_disconn_cb(void *hci_data, void *dev_data)
 	xdev->native_ports[index].state = VPORT_ASSIGNED;
 	xdev->native_ports[index].vport = 0;
 
-	UPRINTF(LINF, "disconnect device %d-%s on vport %d with state %d\r\n",
-			di->path.bus, usb_dev_path(&di->path), vport, state);
+	DPRINTF(("disconnect device %d-%s on vport %d with state %d\r\n",
+			di->path.bus, usb_dev_path(&di->path), vport, state));
 	if (pci_xhci_disconnect_port(xdev, vport, need_intr)) {
 		UPRINTF(LFTL, "fail to report event\r\n");
 		return -1;
