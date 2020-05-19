@@ -23,7 +23,8 @@ SRCS=	\
 	pci_virtio_net.c	\
 	pci_virtio_rnd.c	\
 	mevent.c		\
-	sockstream.c
+	sockstream.c		\
+	virtio.c
 
 LIBADD=	vmmapi md pthread
 
