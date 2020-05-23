@@ -54,7 +54,7 @@ __FBSDID("$FreeBSD$");
 #include "bhyverun.h"
 #include "debug.h"
 #include "pci/pci_emul.h"
-#include "virtio.h"
+#include "../amd64/virtio.h"
 #include "block_if.h"
 
 #define VTBLK_RINGSZ	128
