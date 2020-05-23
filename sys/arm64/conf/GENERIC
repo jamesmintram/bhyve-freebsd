@@ -208,7 +208,7 @@ device		uart_mvebu	# Armada 3700 UART driver
 device		uart_ns8250	# ns8250-type UART driver
 device		uart_snps
 device		pl011
-
+device		iflib
 # USB support
 device		aw_usbphy		# Allwinner USB PHY
 device		rk_usb2phy		# Rockchip USB2PHY
@@ -347,4 +347,4 @@ options 	FDT
 device		acpi
 
 # DTBs
-makeoptions	MODULES_EXTRA="dtb/allwinner dtb/mv dtb/rockchip dtb/rpi"
+#makeoptions	MODULES_EXTRA="dtb/allwinner dtb/mv dtb/rockchip dtb/rpi"
