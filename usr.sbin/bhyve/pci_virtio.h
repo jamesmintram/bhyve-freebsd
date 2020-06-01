@@ -28,8 +28,8 @@
  * $FreeBSD$
  */
 
-#ifndef	_PCI_VIRTIO_H_
-#define	_PCI_VIRTIO_H_
+#ifndef	_VIRTIO_H_
+#define	_VIRTIO_H_
 
 #include <machine/atomic.h>
 
@@ -491,4 +491,4 @@ uint64_t vi_pci_read(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 		     int baridx, uint64_t offset, int size);
 void	vi_pci_write(struct vmctx *ctx, int vcpu, struct pci_devinst *pi,
 		     int baridx, uint64_t offset, int size, uint64_t value);
-#endif	/* _PCI_VIRTIO_H_ */
+#endif	/* _VIRTIO_H_ */
