@@ -50,6 +50,10 @@ __FBSDID("$FreeBSD$");
 
 #include <machine/vmm_snapshot.h>
 
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
+
 #include <dev/usb/usbdi.h>
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_freebsd.h>
@@ -2776,6 +2780,9 @@ pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 {
 	struct pci_xhci_softc *sc;
 	int	error;
+#ifdef BHYVE_SNAPSHOT
+	struct vm_snapshot_dev_info *dev_info;
+#endif
 
 	if (xhci_in_use) {
 		WPRINTF(("pci_xhci controller already defined"));
@@ -2856,6 +2863,21 @@ pci_xhci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	pci_lintr_request(pi);
 
 	pthread_mutex_init(&sc->mtx, NULL);
+#ifdef BHYVE_SNAPSHOT
+	dev_info = calloc(1, sizeof(*dev_info));
+
+	if (!dev_info) {
+		fprintf(stderr, "Error allocating space for snapshot struct");
+		return (1);
+	}
+
+	dev_info->dev_name = pi->pi_d->pe_emu;
+	dev_info->was_restored = 0;
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->meta_data = pi;
+
+	insert_registered_devs(dev_info);
+#endif
 
 done:
 	if (error) {

@@ -39,6 +39,14 @@ __FBSDID("$FreeBSD$");
 #include <machine/vmm_snapshot.h>
 #include <net/ethernet.h>
 #include <net/if.h> /* IFNAMSIZ */
+#ifndef NETMAP_WITH_LIBS
+#define NETMAP_WITH_LIBS
+#endif
+#include <net/netmap_user.h>
+
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
 
 #include <err.h>
 #include <errno.h>
@@ -550,6 +558,9 @@ pci_vtnet_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	int mac_provided;
 	int mtu_provided;
 	unsigned long mtu = ETHERMTU;
+#ifdef BHYVE_SNAPSHOT
+	struct vm_snapshot_dev_info *dev_info;
+#endif
 
 	/*
 	 * Allocate data structures for further virtio initializations.
@@ -691,7 +702,21 @@ pci_vtnet_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	snprintf(tname, sizeof(tname), "vtnet-%d:%d tx", pi->pi_slot,
 	    pi->pi_func);
 	pthread_set_name_np(sc->tx_tid, tname);
+#ifdef BHYVE_SNAPSHOT
+	dev_info = calloc(1, sizeof(*dev_info));
 
+	if (!dev_info) {
+		fprintf(stderr, "Error allocating space for snapshot struct");
+		return (1);
+	}
+
+	dev_info->dev_name = pi->pi_d->pe_emu;
+	dev_info->was_restored = 0;
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->meta_data = pi;
+
+	insert_registered_devs(dev_info);
+#endif
 	return (0);
 }
 
@@ -817,7 +842,7 @@ done:
 }
 #endif
 
-static struct pci_devemu pci_de_vnet = {
+struct pci_devemu pci_de_vnet = {
 	.pe_emu = 	"virtio-net",
 	.pe_init =	pci_vtnet_init,
 	.pe_barwrite =	vi_pci_write,
@@ -828,4 +853,3 @@ static struct pci_devemu pci_de_vnet = {
 	.pe_resume =	vi_pci_resume,
 #endif
 };
-PCI_EMUL_SET(pci_de_vnet);

@@ -62,6 +62,10 @@ __FBSDID("$FreeBSD$");
 #define	VTBLK_BSIZE	512
 #define	VTBLK_RINGSZ	128
 
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
+
 _Static_assert(VTBLK_RINGSZ <= BLOCKIF_RING_MAX, "Each ring entry must be able to queue a request");
 
 #define	VTBLK_S_OK	0
@@ -444,6 +448,9 @@ pci_vtblk_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	struct pci_vtblk_softc *sc;
 	off_t size;
 	int i, sectsz, sts, sto;
+#ifdef BHYVE_SNAPSHOT
+	struct vm_snapshot_dev_info *dev_info;
+#endif
 
 	if (opts == NULL) {
 		WPRINTF(("virtio-block: backing device required"));
@@ -542,6 +549,22 @@ pci_vtblk_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 		return (1);
 	}
 	vi_set_io_bar(&sc->vbsc_vs, 0);
+#ifdef BHYVE_SNAPSHOT
+	dev_info = calloc(1, sizeof(*dev_info));
+
+	if (!dev_info) {
+		fprintf(stderr, "Error allocating space for snapshot struct");
+		return (1);
+	}
+
+	dev_info->dev_name = pi->pi_d->pe_emu;
+	dev_info->was_restored = 0;
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->meta_data = pi;
+
+	insert_registered_devs(dev_info);
+#endif
+
 	return (0);
 }
 
