@@ -47,6 +47,10 @@ __FBSDID("$FreeBSD$");
 #endif
 #include <net/netmap_user.h>
 
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
+
 #ifndef WITHOUT_CAPSICUM
 #include <capsicum_helpers.h>
 #endif
@@ -904,6 +908,9 @@ pci_vtnet_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	char *devname;
 	char *vtopts;
 	int mac_provided;
+#ifdef BHYVE_SNAPSHOT
+	struct vm_snapshot_dev_info *dev_info;
+#endif
 
 	sc = calloc(1, sizeof(struct pci_vtnet_softc));
 
@@ -1009,7 +1016,21 @@ pci_vtnet_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	snprintf(tname, sizeof(tname), "vtnet-%d:%d tx", pi->pi_slot,
 	    pi->pi_func);
 	pthread_set_name_np(sc->tx_tid, tname);
+#ifdef BHYVE_SNAPSHOT
+	dev_info = calloc(1, sizeof(*dev_info));
 
+	if (!dev_info) {
+		fprintf(stderr, "Error allocating space for snapshot struct");
+		return (1);
+	}
+
+	dev_info->dev_name = pi->pi_d->pe_emu;
+	dev_info->was_restored = 0;
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->meta_data = pi;
+
+	insert_registered_devs(dev_info);
+#endif
 	return (0);
 }
 
@@ -1058,7 +1079,6 @@ pci_vtnet_neg_features(void *vsc, uint64_t negotiated_features)
 		sc->rx_vhdrlen -= 2;
 	}
 }
-
 struct pci_devemu pci_de_vnet = {
 	.pe_emu = 	"virtio-net",
 	.pe_init =	pci_vtnet_init,

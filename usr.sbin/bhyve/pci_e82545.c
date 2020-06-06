@@ -48,6 +48,10 @@ __FBSDID("$FreeBSD$");
 #endif
 #include <machine/vmm_snapshot.h>
 
+#ifdef BHYVE_SNAPSHOT
+#include "snapshot.h"
+#endif
+
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -2292,6 +2296,10 @@ e82545_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	char *devname;
 	char *vtopts;
 	int mac_provided;
+#ifdef BHYVE_SNAPSHOT
+	struct vm_snapshot_dev_info *dev_info;
+#endif
+
 
 	/* Setup our softc */
 	sc = calloc(1, sizeof(*sc));
@@ -2379,6 +2387,22 @@ e82545_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 
 	/* H/w initiated reset */
 	e82545_reset(sc, 0);
+
+#ifdef BHYVE_SNAPSHOT
+	dev_info = calloc(1, sizeof(*dev_info));
+
+	if (!dev_info) {
+		fprintf(stderr, "Error allocating space for snapshot struct");
+		return (1);
+	}
+
+	dev_info->dev_name = pi->pi_d->pe_emu;
+	dev_info->was_restored = 0;
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->meta_data = pi;
+
+	insert_registered_devs(dev_info);
+#endif
 
 	return (0);
 }
