@@ -2335,6 +2335,7 @@ pci_ahci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts, int atapi)
 #ifdef BHYVE_SNAPSHOT
 	struct vm_snapshot_dev_info *dev_info;
 #endif
+
 	ret = 0;
 
 #ifdef AHCI_DEBUG
@@ -2507,18 +2508,15 @@ pci_ahci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts, int atapi)
 
 	if (!dev_info) {
 		fprintf(stderr, "Error allocating space for snapshot struct");
-		return (1);
+		goto open_fail;
 	}
 
 	dev_info->dev_name = pi->pi_d->pe_emu;
 	dev_info->was_restored = 0;
-	dev_info->snapshot_cb = pci_snapshot;
 	dev_info->meta_data = pi;
-
-	if (!strcmp(dev_info->dev_name, "ahci") || !strcmp(dev_info->dev_name, "ahci-hd")) {
-		dev_info->pause_cb = pci_pause;
-		dev_info->resume_cb = pci_resume;
-	}
+	dev_info->snapshot_cb = pci_snapshot;
+	dev_info->pause_cb = pci_pause;
+	dev_info->resume_cb = pci_resume;
 
 	insert_registered_devs(dev_info);
 #endif

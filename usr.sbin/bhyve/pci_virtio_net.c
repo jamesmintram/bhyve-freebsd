@@ -707,6 +707,7 @@ pci_vtnet_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 
 	if (!dev_info) {
 		fprintf(stderr, "Error allocating space for snapshot struct");
+		free(sc);
 		return (1);
 	}
 
@@ -853,3 +854,4 @@ struct pci_devemu pci_de_vnet = {
 	.pe_resume =	vi_pci_resume,
 #endif
 };
+PCI_EMUL_SET(pci_de_vnet);
