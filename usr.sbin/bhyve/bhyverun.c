@@ -1090,7 +1090,6 @@ main(int argc, char *argv[])
 	int vcpu;
 
 	restore_file = NULL;
-	head_registered_devs = NULL;
 #endif
 
 	bvmcons = 0;
