@@ -79,9 +79,11 @@ __FBSDID("$FreeBSD$");
 #endif
 
 /* TODO: delete me */
-#include <arm64/vmm/arm64.h>
+//#include <arm64/vmm/arm64.h>
 
 #include "generic_timer.h"
+
+#define DEBUG_ME 0
 
 #define	GT_CTRL_ENABLE		(1 << 0)
 #define	GT_CTRL_INT_MASK	(1 << 1)
