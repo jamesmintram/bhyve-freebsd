@@ -94,6 +94,9 @@ CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/e1000
 CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/mii
 CFLAGS+= -I${BHYVE_SYSDIR}/sys/dev/usb/controller
 
+# Temporary disable capsicum, until we integrate checkpoint code with it.
+CFLAGS+= -DWITHOUT_CAPSICUM
+
 .ifdef GDB_LOG
 CFLAGS+=-DGDB_LOG
 .endif
