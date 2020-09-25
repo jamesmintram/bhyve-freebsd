@@ -1512,7 +1512,7 @@ pci_xhci_cmd_address_device(struct pci_xhci_softc *sc, uint32_t slot,
 	ep0_ctx->dwEpCtx0 = (ep0_ctx->dwEpCtx0 & ~0x7) |
 	    XHCI_EPCTX_0_EPSTATE_SET(XHCI_ST_EPCTX_RUNNING);
 
-	pci_xhci_init_ep(dev, 1);
+	pci_xhci_init_ep(dev, 1, slot);
 
 	dev->dev_slotstate = XHCI_ST_ADDRESSED;
 
@@ -1621,7 +1621,7 @@ pci_xhci_cmd_config_ep(struct pci_xhci_softc *sc, uint32_t slot,
 
 			memcpy(ep_ctx, iep_ctx, sizeof(struct xhci_endp_ctx));
 
-			pci_xhci_init_ep(dev, i);
+			pci_xhci_init_ep(dev, i, slot);
 
 			/* ep state */
 			ep_ctx->dwEpCtx0 = FIELD_REPLACE(
