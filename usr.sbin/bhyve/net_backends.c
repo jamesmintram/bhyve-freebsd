@@ -70,7 +70,7 @@ __FBSDID("$FreeBSD$");
 #include <assert.h>
 
 
-#include "../debug.h"
+#include "debug.h"
 #include "iov.h"
 #include "mevent.h"
 #include "net_backends.h"

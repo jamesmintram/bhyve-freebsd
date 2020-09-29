@@ -2361,10 +2361,10 @@ e82545_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 }
 
 struct pci_devemu pci_de_e82545 = {
-	.de_emu = 	"e1000",
-	.de_init =	e82545_init,
-	.de_write =	e82545_write,
-	.de_read =	e82545_read
+	.pe_emu = 	"e1000",
+	.pe_init =	e82545_init,
+	.pe_barwrite =	e82545_write,
+	.pe_barread =	e82545_read
 };
 PCI_EMUL_SET(pci_de_e82545);
 
