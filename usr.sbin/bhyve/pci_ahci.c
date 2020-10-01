@@ -2346,8 +2346,6 @@ pci_ahci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts, int atapi)
 	pi->pi_arg = sc;
 	sc->asc_pi = pi;
 	pthread_mutex_init(&sc->mtx, NULL);
-	sc->ports = 0;
-	sc->pi = 0;
 	slots = 32;
 
 	for (p = 0; p < MAX_PORTS && opts != NULL; p++, opts = next) {
@@ -2512,7 +2510,6 @@ pci_ahci_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts, int atapi)
 	}
 
 	dev_info->dev_name = pi->pi_d->pe_emu;
-	dev_info->was_restored = 0;
 	dev_info->meta_data = pi;
 	dev_info->snapshot_cb = pci_snapshot;
 	dev_info->pause_cb = pci_pause;
