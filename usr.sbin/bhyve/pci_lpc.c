@@ -441,7 +441,6 @@ pci_lpc_init(struct vmctx *ctx, struct pci_devinst *pi, char *opts)
 	}
 
 	dev_info->dev_name = pi->pi_d->pe_emu;
-	dev_info->was_restored = 0;
 	dev_info->snapshot_cb = pci_snapshot;
 	dev_info->meta_data = pi;
 

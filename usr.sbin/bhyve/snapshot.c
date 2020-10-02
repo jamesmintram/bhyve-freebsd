@@ -1417,7 +1417,7 @@ vm_checkpoint(struct vmctx *ctx, char *checkpoint_file, bool stop_vm)
 		perror("Could not write guest memory to file");
 		error = -1;
 		goto done;
-	}	
+	}
 
 	ret = vm_snapshot_basic_metadata(ctx, xop, memsz);
 	if (ret != 0) {
