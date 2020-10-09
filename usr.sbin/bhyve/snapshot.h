@@ -42,6 +42,13 @@
 #include <libxo/xo.h>
 #include <ucl.h>
 
+
+#ifndef JSON_SNAPSHPT_V2
+
+#define JSON_SNAPSHOT_V2
+
+#endif
+
 struct vmctx;
 
 struct restore_state {
