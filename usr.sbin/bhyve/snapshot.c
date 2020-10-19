@@ -179,35 +179,40 @@ static pthread_cond_t vcpus_idle, vcpus_can_run;
 static bool checkpoint_active;
 
 void
-add_device_info(struct vm_snapshot_device_info *field_info, const char *dev_name,
-		char *field_name, volatile void *data, size_t data_size)
+add_device_info(struct vm_snapshot_device_info *field_info, char *field_name,
+				const char *arr_name, volatile void *data, size_t data_size)
 {
-	size_t dev_len, field_len;
+	size_t field_len, arr_name_len;
 
-	dev_len = strlen(dev_name);
-	field_info->dev_name = calloc(dev_len + 1, sizeof(char));
-	assert(field_info->dev_name != NULL);
-	memcpy(field_info->dev_name, dev_name, dev_len);
+	if (arr_name != NULL) {
+		arr_name_len = strlen(arr_name);
+		field_info->intern_arr_name = calloc(arr_name_len + 1, sizeof(char));
+		assert(field_info->intern_arr_name);
+		memcpy(field_info->intern_arr_name, arr_name, arr_name_len);
+	} else
+		field_info->intern_arr_name = NULL;
 
 	field_len = strlen(field_name);
 	field_info->field_name = calloc(field_len + 1, sizeof(char));
 	assert(field_info->field_name != NULL);
 	memcpy(field_info->field_name, field_name, field_len);
 
-	field_info->field_data = calloc(data_size, sizeof(char));
+	field_info->field_data = calloc(data_size + 1, sizeof(char));
 	assert(field_info->field_data != NULL);
 	memcpy(field_info->field_data, (uint8_t *)data, data_size);
+	field_info->data_size = data_size;
 }
 
 void
-alloc_device_info_elem(struct list_device_info *list,
-	const char *dev_name, char *field_name, volatile void *data, size_t data_size)
+alloc_device_info_elem(struct list_device_info *list, char *field_name,
+						volatile void *data, size_t data_size)
 {
 	struct vm_snapshot_device_info *aux;
 
 	aux = calloc(1, sizeof(struct vm_snapshot_device_info));
 	assert(aux != NULL);
-	add_device_info(aux, dev_name, field_name, data, data_size);
+	aux->ident = list->ident;
+	add_device_info(aux, field_name, list->intern_arr_name, data, data_size);
 
 	if (list->first == NULL) {
 		list->first = aux;
@@ -228,7 +233,7 @@ free_device_info_list(struct list_device_info *list)
 
 	curr_el = list->first;
 	while (curr_el != NULL) {
-		free(curr_el->dev_name);
+		free(curr_el->intern_arr_name);
 		free(curr_el->field_name);
 		free(curr_el->field_data);
 
@@ -236,6 +241,8 @@ free_device_info_list(struct list_device_info *list)
 		free(curr_el);
 		curr_el = aux;
 	}
+	list->ident = 0;
+	list->intern_arr_name = NULL;
 	list->first = NULL;
 	list->last = NULL;
 }
@@ -970,6 +977,8 @@ vm_restore_kern_struct(struct vmctx *ctx, struct restore_state *rstate,
 		.version = JSON_V1,
 #else
 		.version = JSON_V2,
+		.dev_info_list.ident = 0,
+		.dev_info_list.intern_arr_name = NULL,
 		.dev_info_list.first = NULL,
 		.dev_info_list.last = NULL,
 #endif
@@ -1040,6 +1049,8 @@ vm_restore_user_dev(struct vmctx *ctx, struct restore_state *rstate,
 		.version = JSON_V1,
 #else
 		.version = JSON_V2,
+		.dev_info_list.ident = 0,
+		.dev_info_list.intern_arr_name = NULL,
 		.dev_info_list.first = NULL,
 		.dev_info_list.last = NULL,
 #endif
@@ -1181,6 +1192,8 @@ vm_snapshot_kern_structs(struct vmctx *ctx, int data_fd, xo_handle_t *xop)
 		.version = JSON_V1,
 #else
 		.version = JSON_V2,
+		.dev_info_list.ident = 0,
+		.dev_info_list.intern_arr_name = NULL,
 		.dev_info_list.first = NULL,
 		.dev_info_list.last = NULL,
 #endif
@@ -1250,6 +1263,7 @@ vm_snapshot_dev_write_data(int data_fd, xo_handle_t *xop, const char *array_key,
 	size_t data_size;
 
 	struct vm_snapshot_device_info *curr_el;
+	char *curr_arr;
 
 	data_size = vm_get_snapshot_size(meta);
 
@@ -1269,16 +1283,31 @@ vm_snapshot_dev_write_data(int data_fd, xo_handle_t *xop, const char *array_key,
 		xo_emit_h(xop, "{:" JSON_FILE_OFFSET_KEY "/%lu}\n", *offset);
 	}
 	if (meta->version == JSON_V2) {
+		curr_arr = NULL;
 		xo_open_list_h(xop, "device_params");
 
 		curr_el = meta->dev_info_list.first;
 		while (curr_el != NULL) {
 			xo_open_instance_h(xop, "device_params");
-			xo_emit_h(xop, "{:" "param_name" "/%s}\n", curr_el->field_name);
-			xo_emit_h(xop, "{:" "param_data" "/%s}\n", "TODO - Add data");
-			xo_emit_h(xop, "{:" "data_size" "/%lu}\n", -1);
-			xo_close_instance_h(xop, "device_params");
+			if (meta->dev_info_list.ident < curr_el->ident) {
+				curr_arr = curr_el->intern_arr_name;
+				xo_open_list_h(xop, curr_arr);
+			}
+			if (curr_arr != NULL)
+				xo_open_instance_h(xop, curr_arr);
 
+			xo_emit_h(xop, "{:" "param_name" "/%s}\n", curr_el->field_name);
+			xo_emit_h(xop, "{:" "param_data" "/%s}\n", "TODO - Add encoded data"); // (uint8_t *)curr_el->field_data);
+			xo_emit_h(xop, "{:" "data_size" "/%lu}\n", curr_el->data_size);
+			
+			if (curr_arr != NULL)
+				xo_close_instance_h(xop, curr_arr);
+			if (meta->dev_info_list.ident > curr_el->ident) {
+				xo_close_list_h(xop, curr_arr);
+			}
+			xo_close_instance_h(xop, "device_params");
+			meta->dev_info_list.ident = curr_el->ident;
+			curr_arr = curr_el->intern_arr_name;
 			curr_el = curr_el->next_field;
 		}
 
@@ -1351,6 +1380,8 @@ vm_snapshot_user_devs(struct vmctx *ctx, int data_fd, xo_handle_t *xop)
 		.version = JSON_V1,
 #else
 		.version = JSON_V2,
+		.dev_info_list.ident = 0,
+		.dev_info_list.intern_arr_name = NULL,
 		.dev_info_list.first = NULL,
 		.dev_info_list.last = NULL,
 #endif
@@ -1365,6 +1396,9 @@ vm_snapshot_user_devs(struct vmctx *ctx, int data_fd, xo_handle_t *xop)
 		memset(meta->buffer.buf_start, 0, meta->buffer.buf_size);
 		meta->buffer.buf = meta->buffer.buf_start;
 		meta->buffer.buf_rem = meta->buffer.buf_size;
+
+		if (meta->version == JSON_V2)
+			free_device_info_list(&meta->dev_info_list);
 
 		ret = vm_snapshot_user_dev(&snapshot_devs[i], data_fd, xop,
 					   meta, &offset);
@@ -1739,12 +1773,10 @@ vm_snapshot_save_fieldname(const char *fullname, volatile void *data,
 	size_t len;
 	char *ffield_name;
     char *field_name;
-	struct vm_snapshot_buffer *buffer;
 	int op;
 	struct list_device_info *list;
     const char s[2] = ">";
 
-	buffer = &meta->buffer;
 	op = meta->op;
 
     len = strlen(fullname);
@@ -1762,11 +1794,7 @@ vm_snapshot_save_fieldname(const char *fullname, volatile void *data,
 
 	if (meta->op == VM_SNAPSHOT_SAVE) {
 		list = &meta->dev_info_list;
-		if (list->first != NULL) {
-			if (strcmp(list->first->dev_name, meta->dev_name))
-				free_device_info_list(list);
-		}
-		alloc_device_info_elem(list, meta->dev_name, field_name, data, data_size);
+		alloc_device_info_elem(list, field_name, data, data_size);
 	} else if (meta->op == VM_SNAPSHOT_RESTORE) {
 		/* TODO */
 	} else
@@ -1775,6 +1803,27 @@ vm_snapshot_save_fieldname(const char *fullname, volatile void *data,
 	free(ffield_name);
 	
 	return (0);
+}
+
+void
+vm_snapshot_add_intern_list(const char *arr_name, struct vm_snapshot_meta *meta)
+{
+	// struct list_device_info *list;
+
+	// list = &meta->dev_info_list;
+
+	meta->dev_info_list.ident++;
+	meta->dev_info_list.intern_arr_name = arr_name;
+	// list->intern_arr_name = calloc(strlen(arr_name) + 1, sizeof(char));
+	// memcpy(list->inter_arr_name, arr_name, strlen(arr_name));
+}
+
+void
+vm_snapshot_remove_intern_list(struct vm_snapshot_meta *meta)
+{
+	meta->dev_info_list.ident--;
+	meta->dev_info_list.intern_arr_name = NULL;
+	// free(meta->dev_info_list.intern_arr_name);
 }
 
 void

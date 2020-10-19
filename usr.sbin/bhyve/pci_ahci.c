@@ -2651,6 +2651,7 @@ pci_ahci_snapshot(struct vm_snapshot_meta *meta)
 	SNAPSHOT_VAR_OR_LEAVE(sc->bohc, meta, ret, done);
 	SNAPSHOT_VAR_OR_LEAVE(sc->lintr, meta, ret, done);
 
+	SNAPSHOT_ADD_INTERN_ARR(ports, meta);
 	for (i = 0; i < MAX_PORTS; i++) {
 		port = &sc->port[i];
 
@@ -2752,6 +2753,7 @@ pci_ahci_snapshot(struct vm_snapshot_meta *meta)
 			goto done;
 		}
 	}
+	SNAPSHOT_REMOVE_INTERN_ARR(ports, meta);
 
 done:
 	return (ret);
